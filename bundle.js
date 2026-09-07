@@ -1038,12 +1038,71 @@ async function saveCloudSyncRecord(title, payload) {
   }
 }
 
+const KNOWN_TEST_LISTING_IDS = [
+  "eaf2bb5f-ffb3-4401-9924-2b6768ffa0a4",
+  "3b335f0b-4b2a-4c09-8aba-80a3bde07557",
+  "39dd9660-4705-49d1-b4f1-28f61c036fae",
+  "9a7d0be9-291b-42c8-9bd9-3112226de8d3",
+  "f87c737b-b6ff-4b9b-b3e5-af8f771a7e2b",
+  "5d2984bf-05ef-4bce-99f6-b8959fc697f8",
+  "0acd0484-6f9b-4e96-9414-b6a566fe0f19"
+];
+
+function isTestListing(item) {
+  if (!item) return true;
+  const id = item.id || item.listing_id;
+  if (id && KNOWN_TEST_LISTING_IDS.includes(id)) return true;
+  const title = String(item.title || "").toLowerCase().trim();
+  if (title === "testing" || title === "test" || title === "try" || title === "abcd...." || title === "abcdfghhbd" || title === "test ad multi-mobile sync") return true;
+  if (title.startsWith("test ad") || title.startsWith("[test") || title.startsWith("testing ") || title === "abcd" || title.startsWith("abcd.")) return true;
+  return false;
+}
+
+let _hasPurgedTestListings = false;
+async function purgeOldTestListings() {
+  if (_hasPurgedTestListings) return;
+  _hasPurgedTestListings = true;
+  try {
+    const delList = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]");
+    let changed = false;
+    KNOWN_TEST_LISTING_IDS.forEach(id => {
+      if (!delList.includes(id)) {
+        delList.push(id);
+        changed = true;
+      }
+    });
+    if (changed) {
+      localStorage.setItem("deleted_listing_ids", JSON.stringify(delList));
+    }
+  } catch(e) {}
+  try {
+    const storageKeys = ["user_custom_listings", "admin_listings", "admin_custom_listings"];
+    storageKeys.forEach(key => {
+      const saved = JSON.parse(localStorage.getItem(key) || "[]");
+      if (Array.isArray(saved)) {
+        const filtered = saved.filter(l => l && !isTestListing(l));
+        if (filtered.length !== saved.length) {
+          localStorage.setItem(key, JSON.stringify(filtered));
+        }
+      }
+    });
+  } catch(e) {}
+  try {
+    await saveCloudSyncRecord("[SYS_DELETED_LISTING]", {
+      deleted_listing_ids: KNOWN_TEST_LISTING_IDS,
+      deleted_at: new Date().toISOString()
+    });
+  } catch(e) {}
+}
+
+try { purgeOldTestListings(); } catch(e) {}
+
 async function getCloudSyncState(forceFresh = false) {
   const now = Date.now();
   if (!forceFresh && _cachedCloudSync && (now - _lastCloudSyncFetchTime < CLOUD_SYNC_CACHE_TTL)) {
     return _cachedCloudSync;
   }
-  let deletedListingIds = [];
+  let deletedListingIds = [...KNOWN_TEST_LISTING_IDS];
   let listingStatusOverrides = {};
   let userStatusOverrides = {};
   let rechargeStatusOverrides = {};
@@ -1052,7 +1111,12 @@ async function getCloudSyncState(forceFresh = false) {
   let rechargeRequests = [];
   let topProRequests = [];
 
-  try { deletedListingIds = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]"); } catch(e) {}
+  try {
+    const localDels = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]");
+    localDels.forEach(dId => {
+      if (dId && !deletedListingIds.includes(dId)) deletedListingIds.push(dId);
+    });
+  } catch(e) {}
   try { listingStatusOverrides = JSON.parse(localStorage.getItem("listing_status_overrides") || "{}"); } catch(e) {}
   try { userStatusOverrides = JSON.parse(localStorage.getItem("admin_status_overrides") || "{}"); } catch(e) {}
   try { rechargeStatusOverrides = JSON.parse(localStorage.getItem("recharge_status_overrides") || "{}"); } catch(e) {}
@@ -1178,6 +1242,7 @@ async function getCloudSyncState(forceFresh = false) {
   _lastCloudSyncFetchTime = Date.now();
   return _cachedCloudSync;
 }async function Vp(e = {}) {
+  try { purgeOldTestListings(); } catch(err) {}
   let list = [];
   try {
     list = await fetchAllListings();
@@ -1193,6 +1258,7 @@ async function getCloudSyncState(forceFresh = false) {
   // Authoritative status filter: active/published listings only
   let filteredRes = list.filter(function(item) {
     if (!item || !item.id) return false;
+    if (isTestListing(item)) return false;
     const titleStr = String(item.title || "");
     if (titleStr.startsWith("[SYS_") || titleStr.startsWith("SYS_") || titleStr === "[SYS_APP_CONFIG]") return false;
     if (deletedIds.includes(item.id)) return false;
@@ -2197,6 +2263,7 @@ async function fetchAllListings(){
   return list.filter(function(item) {
     if (!item || !item.id) return false;
     if (deletedIds.includes(item.id)) return false;
+    if (isTestListing(item)) return false;
     if (typeof item.title === "string" && (item.title.startsWith("[SYS_") || item.title.startsWith("SYS_"))) return false;
     return true;
   }).map(function(item) {
