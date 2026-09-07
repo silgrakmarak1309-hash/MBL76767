@@ -7,6 +7,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // App Settings and Account Lock Registry
+    match /appSettings/{settingId} {
+      allow read, write: if true;
+    }
+
     // Categories
     match /categories/{categoryId} {
       allow read, write: if true;

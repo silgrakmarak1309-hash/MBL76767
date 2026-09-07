@@ -153,17 +153,78 @@ function getDeviceFingerprint() {
   return devId;
 }
 
-async function checkDeviceLoginAllowedAsync(email) {
-  if (!email) return { allowed: false, message: "Please enter a valid email address." };
-  const cleanEmail = String(email).toLowerCase().trim();
+async function fetchBackendAccountLock(forceFresh = false) {
+  let backendLock = null;
+  try {
+    if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.getAccountLock) {
+      const fbLock = await window.FirebaseDB.getAccountLock(forceFresh);
+      if (fbLock && (fbLock.authorizedEmail || fbLock.authorizedUid)) {
+        backendLock = fbLock;
+      }
+    }
+  } catch(e) {}
+
+  try {
+    const syncState = await getCloudSyncState(forceFresh);
+    if (syncState && syncState.cloudConfig && syncState.cloudConfig.account_lock) {
+      const supLock = syncState.cloudConfig.account_lock;
+      if (supLock && (supLock.authorizedEmail || supLock.authorizedUid)) {
+        if (!backendLock) backendLock = supLock;
+      }
+    }
+  } catch(e) {}
+
+  if (!backendLock) {
+    try {
+      const local = localStorage.getItem("mlb_account_lock");
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed && (parsed.authorizedEmail || parsed.authorizedUid)) {
+          backendLock = parsed;
+        }
+      }
+    } catch(e) {}
+  }
+  return backendLock;
+}
+
+async function checkDeviceLoginAllowedAsync(email, uid) {
+  if (!email && !uid) return { allowed: false, message: "Please enter a valid email address." };
+  const cleanEmail = email ? String(email).toLowerCase().trim() : "";
   
-  if (isUserAdmin({ email: cleanEmail })) {
+  if (cleanEmail && isUserAdmin({ email: cleanEmail })) {
     return { allowed: true, isAdmin: true };
   }
-  
+
   const devId = getDeviceFingerprint();
+  const lock = await fetchBackendAccountLock(true);
+
+  if (lock && (lock.authorizedEmail || lock.authorizedUid)) {
+    const authEmail = (lock.authorizedEmail || "").toLowerCase().trim();
+    const authUid = lock.authorizedUid || "";
+
+    const emailMatches = cleanEmail && authEmail && (cleanEmail === authEmail);
+    const uidMatches = uid && authUid && (uid === authUid);
+
+    if (emailMatches || uidMatches) {
+      return {
+        allowed: true,
+        authorizedEmail: authEmail,
+        authorizedUid: authUid,
+        devId: devId
+      };
+    } else {
+      return {
+        allowed: false,
+        authorizedEmail: authEmail,
+        authorizedUid: authUid,
+        devId: devId,
+        message: "This app is already registered with another account. Please use the registered account."
+      };
+    }
+  }
+
   let boundEmail = "";
-  
   try {
     boundEmail = localStorage.getItem("mlb_bound_email_" + devId) || localStorage.getItem("mlb_bound_device_" + devId) || "";
     if (!boundEmail) {
@@ -172,31 +233,17 @@ async function checkDeviceLoginAllowedAsync(email) {
     }
     boundEmail = String(boundEmail).toLowerCase().trim();
   } catch(e) {}
-  
-  try {
-    const { data: cData } = await L.from("listings").select("description").eq("title", "[SYS_APP_CONFIG]").order("created_at", { ascending: false }).limit(1);
-    if (cData && cData[0] && cData[0].description) {
-      const cfg = JSON.parse(cData[0].description);
-      if (cfg && cfg.device_bindings && cfg.device_bindings[devId]) {
-        boundEmail = String(cfg.device_bindings[devId]).toLowerCase().trim();
-      }
-    }
-  } catch(e) {}
-  
-  if (boundEmail) {
-    if (boundEmail === cleanEmail) {
-      return { allowed: true, boundEmail: boundEmail, devId: devId };
-    } else {
-      return {
-        allowed: false,
-        boundEmail: boundEmail,
-        devId: devId,
-        message: "This device is already registered with another account (" + boundEmail + "). Only the registered Gmail/Email ID can be used on this device."
-      };
-    }
+
+  if (boundEmail && cleanEmail && boundEmail !== cleanEmail) {
+    return {
+      allowed: false,
+      authorizedEmail: boundEmail,
+      devId: devId,
+      message: "This app is already registered with another account. Please use the registered account."
+    };
   }
-  
-  return { allowed: true, isNewDevice: true, devId: devId };
+
+  return { allowed: true, isNewAccount: true, devId: devId };
 }
 
 function checkDeviceLoginAllowed(email) {
@@ -205,39 +252,63 @@ function checkDeviceLoginAllowed(email) {
   if (isUserAdmin({ email: cleanEmail })) {
     return { allowed: true, isAdmin: true };
   }
-  const devId = getDeviceFingerprint();
   let boundEmail = "";
   try {
-    boundEmail = localStorage.getItem("mlb_bound_email_" + devId) || localStorage.getItem("mlb_bound_device_" + devId) || "";
-    if (!boundEmail) {
-      const match = document.cookie.match(new RegExp("(?:^|; )mlb_bound_email_" + devId + "=([^;]*)"));
-      if (match) boundEmail = decodeURIComponent(match[1]);
-    }
-    boundEmail = String(boundEmail).toLowerCase().trim();
+    const lock = JSON.parse(localStorage.getItem("mlb_account_lock") || "null");
+    if (lock && lock.authorizedEmail) boundEmail = lock.authorizedEmail;
   } catch(e) {}
+  if (!boundEmail) {
+    const devId = getDeviceFingerprint();
+    try {
+      boundEmail = localStorage.getItem("mlb_bound_email_" + devId) || localStorage.getItem("mlb_bound_device_" + devId) || "";
+    } catch(e) {}
+  }
+  boundEmail = String(boundEmail).toLowerCase().trim();
   if (boundEmail && boundEmail !== cleanEmail) {
     return {
       allowed: false,
-      boundEmail: boundEmail,
-      devId: devId,
-      message: "This device is already registered with another account (" + boundEmail + "). Only the registered Gmail/Email ID can be used on this device."
+      authorizedEmail: boundEmail,
+      message: "This app is already registered with another account. Please use the registered account."
     };
   }
-  return { allowed: true, devId: devId };
+  return { allowed: true };
 }
 
-async function bindDeviceEmailAsync(email) {
-  if (!email) return;
-  const cleanEmail = String(email).toLowerCase().trim();
-  if (isUserAdmin({ email: cleanEmail })) return;
+async function bindDeviceEmailAsync(email, uid, provider = "password") {
+  if (!email && !uid) return;
+  const cleanEmail = email ? String(email).toLowerCase().trim() : "";
+  if (cleanEmail && isUserAdmin({ email: cleanEmail })) return;
+
   const devId = getDeviceFingerprint();
-  
+  const existingLock = await fetchBackendAccountLock(false);
+  if (existingLock && (existingLock.authorizedEmail || existingLock.authorizedUid)) {
+    return;
+  }
+
+  const lockPayload = {
+    authorizedUid: uid || "",
+    authorizedEmail: cleanEmail,
+    authorizedProvider: provider || (cleanEmail.includes("@gmail.com") ? "google" : "password"),
+    lockedAt: new Date().toISOString(),
+    isLocked: true
+  };
+
   try {
+    localStorage.setItem("mlb_account_lock", JSON.stringify(lockPayload));
     localStorage.setItem("mlb_bound_email_" + devId, cleanEmail);
     localStorage.setItem("mlb_bound_device_" + devId, cleanEmail);
     document.cookie = "mlb_bound_email_" + encodeURIComponent(devId) + "=" + encodeURIComponent(cleanEmail) + "; path=/; max-age=315360000; SameSite=Lax";
+    document.cookie = "mlb_account_lock=" + encodeURIComponent(JSON.stringify(lockPayload)) + "; path=/; max-age=315360000; SameSite=Lax";
   } catch(e) {}
-  
+
+  try {
+    if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.saveAccountLock) {
+      await window.FirebaseDB.saveAccountLock(lockPayload);
+    }
+  } catch(e) {
+    console.warn("Firebase saveAccountLock error:", e);
+  }
+
   try {
     let currentBindings = {};
     const { data: cData } = await L.from("listings").select("description").eq("title", "[SYS_APP_CONFIG]").order("created_at", { ascending: false }).limit(1);
@@ -245,17 +316,17 @@ async function bindDeviceEmailAsync(email) {
       const cfg = JSON.parse(cData[0].description);
       if (cfg && cfg.device_bindings) currentBindings = cfg.device_bindings;
     }
-    if (!currentBindings[devId] || currentBindings[devId] !== cleanEmail) {
-      currentBindings[devId] = cleanEmail;
-      await syncCloudConfig({ device_bindings: currentBindings });
-    }
-  } catch(e) {}
+    currentBindings[devId] = cleanEmail;
+    await syncCloudConfig({ account_lock: lockPayload, device_bindings: currentBindings });
+  } catch(e) {
+    console.warn("Supabase syncCloudConfig lock error:", e);
+  }
 }
 
 function bindDeviceEmail(email) {
   bindDeviceEmailAsync(email).catch(()=>{});
 }
-function bw({children:e}){  const[t,n]=m.useState(null),  [r,s]=m.useState(null),  [i,l]=m.useState(null),  [o,c]=m.useState(!0),  userRef=m.useRef(null),  u=m.useCallback(async w=>{    try {      let p_data=null;      try{const cached=localStorage.getItem("mlb_saved_profile_"+w);if(cached)p_data=JSON.parse(cached);}catch(e){}      try{        const{data:j,error:f}=await L.from("profiles").select("*").eq("id",w).maybeSingle();        if(!f&&j){p_data={...(p_data||{}),...j};}      }catch(err){}      try{        if(typeof window!=="undefined"&&window.FirebaseDB&&window.FirebaseDB.getUser){          const fbUser=await window.FirebaseDB.getUser(w);          if(fbUser){p_data={...(p_data||{}),...fbUser};}        }      }catch(fbErr){}      try{        const{data:u_auth}=await L.auth.getUser();        const u_email=u_auth?.user?.email;        const u_name=u_auth?.user?.user_metadata?.name||u_email?.split('@')[0]||'User';        const isAdminUser = isUserAdmin({email:u_email});        if(!p_data){          p_data={id:w,email:u_email,name:u_name,role:isAdminUser?'super_admin':'user',account_status:'active',status:'active',is_pro:isAdminUser,pro_status:isAdminUser?'active':'inactive',created_at:new Date().toISOString()};          try{await L.from('profiles').upsert(p_data)}catch(err){}        }else{          if(isAdminUser){            p_data={...p_data,role:'super_admin',is_pro:!0,pro_status:'active'};            try{await L.from('profiles').update({role:'super_admin',is_pro:!0,pro_status:'active'}).eq('id',w)}catch(err){}          }        }      }catch(e){}      if(p_data){        try {          const syncState = await getCloudSyncState();          const userOverrides = syncState.userStatusOverrides || {};          const cleanEmail = (p_data.email || "").trim().toLowerCase();          const uCloud = userOverrides[p_data.id] || (cleanEmail ? userOverrides[cleanEmail] : null);          if (uCloud) {            if (uCloud.account_status !== undefined) p_data.account_status = uCloud.account_status;            if (uCloud.status !== undefined) p_data.status = uCloud.status;            if (uCloud.is_pro !== undefined) p_data.is_pro = uCloud.is_pro;            if (uCloud.pro_status !== undefined) p_data.pro_status = uCloud.pro_status;            if (uCloud.pro_expires_at) p_data.pro_expires_at = uCloud.pro_expires_at;            if (uCloud.approved_expiry_date) p_data.approved_expiry_date = uCloud.approved_expiry_date;          }        } catch(err) {}        try {          const statusOverrides = JSON.parse(localStorage.getItem("admin_status_overrides") || "{}");          const sOverride = statusOverrides[p_data.id] || (p_data.email && (statusOverrides[p_data.email] || statusOverrides[p_data.email.toLowerCase().trim()]));          if (sOverride) {            const val = (typeof sOverride === "object" && sOverride.account_status) ? sOverride.account_status : sOverride;            if (typeof val === "string") {              p_data.account_status = val;              p_data.status = val;            }          }          const proOverrides = JSON.parse(localStorage.getItem("admin_pro_overrides") || "{}");          const pOverride = proOverrides[p_data.id] || (p_data.email && (proOverrides[p_data.email] || proOverrides[p_data.email.toLowerCase().trim()]));          if (pOverride) {            if (pOverride.is_pro !== undefined) p_data.is_pro = pOverride.is_pro;            if (pOverride.pro_status !== undefined) p_data.pro_status = pOverride.pro_status;            if (pOverride.pro_expires_at) p_data.pro_expires_at = pOverride.pro_expires_at;            if (pOverride.approved_expiry_date) p_data.approved_expiry_date = pOverride.approved_expiry_date;          }        } catch(err) {}        try{localStorage.setItem("mlb_saved_profile_"+w,JSON.stringify(p_data));}catch(err){}      }      l(p_data);    } catch(err) {      console.warn('Profile fetch failure:', err);    }  },[]),  d=m.useCallback(async()=>{const currentUser=userRef.current;currentUser&&await u(currentUser.id)},[u]);  m.useEffect(()=>{    let isMounted = true;    const safetyTimer = setTimeout(() => {      if (isMounted) c(false);    }, 1500);    try {      L.auth.getSession().then(({data:j})=>{        if (!isMounted) return;        var f,g;        s(j.session);        userRef.current=((f=j.session)==null?void 0:f.user)??null;        n(userRef.current);        if((g=j.session)!=null&&g.user){          u(j.session.user.id).catch(()=>{}).finally(()=>{ if(isMounted) c(false); });        } else {          if (isMounted) c(false);        }      }).catch(err => {        console.warn('getSession error:', err);        if (isMounted) c(false);      });    } catch(err) {      if (isMounted) c(false);    }    let unsub = null;    try {      const { data: w } = L.auth.onAuthStateChange((j,f)=>{        if (!isMounted) return;        s(f);        userRef.current=(f==null?void 0:f.user)??null;        n(userRef.current);        if(f!=null&&f.user){          u(f.user.id).catch(()=>{});        } else {          l(null);        }      });      unsub = w?.subscription?.unsubscribe;    } catch(err) {}    const handleProfileSync = () => {      const currentUser=userRef.current;      if (currentUser) u(currentUser.id).catch(()=>{});    };    window.addEventListener("user_profile_updated", handleProfileSync);    window.addEventListener("user_status_changed", handleProfileSync);    window.addEventListener("recharge_status_updated", handleProfileSync);    window.addEventListener("storage", handleProfileSync);    window.addEventListener("focus", handleProfileSync);    document.addEventListener("visibilitychange", handleProfileSync);    return () => {      isMounted = false;      clearTimeout(safetyTimer);      if(unsub) unsub();      window.removeEventListener("user_profile_updated", handleProfileSync);      window.removeEventListener("user_status_changed", handleProfileSync);      window.removeEventListener("recharge_status_updated", handleProfileSync);      window.removeEventListener("storage", handleProfileSync);      window.removeEventListener("focus", handleProfileSync);      document.removeEventListener("visibilitychange", handleProfileSync);    };  },[u]);  const h=async(w,j,f)=>{try{const{error:g}=await L.auth.signUp({email:w,password:j,options:{data:{name:f}}});return{error:(g==null?void 0:g.message)??null}}catch(e){return{error:e.message||'Sign up failed'}}},  p=async(w,j)=>{try{const{error:f}=await L.auth.signInWithPassword({email:w,password:j});return{error:(f==null?void 0:f.message)??null}}catch(e){return{error:e.message||'Sign in failed'}}},  v=async()=>{try{await L.auth.signOut()}catch(e){}l(null)},  x=async w=>{try{const{error:j}=await L.auth.resetPasswordForEmail(w);return{error:(j==null?void 0:j.message)??null}}catch(e){return{error:e.message||'Reset failed'}}};    m.useEffect(function() {    if (t && i) {      try { checkProExpiryNotifications(t, i); } catch(e) {}      const interval = setInterval(function() {        try { checkProExpiryNotifications(t, i); } catch(e) {}      }, 3600000);      return function() { clearInterval(interval); };    }  }, [t, i]);  return a.jsx(Tp.Provider,{value:{user:t,session:r,profile:i,loading:o,signUp:h,signIn:p,signOut:v,resetPassword:x,refreshProfile:d},children:e})}function Ae(){const e=m.useContext(Tp);if(!e)throw new Error("useAuth must be used within AuthProvider");return e}/**
+function bw({children:e}){  const[t,n]=m.useState(null),  [r,s]=m.useState(null),  [i,l]=m.useState(null),  [o,c]=m.useState(!0),  userRef=m.useRef(null),  u=m.useCallback(async w=>{    try {      let p_data=null;      try{const cached=localStorage.getItem("mlb_saved_profile_"+w);if(cached)p_data=JSON.parse(cached);}catch(e){}      try{        const{data:j,error:f}=await L.from("profiles").select("*").eq("id",w).maybeSingle();        if(!f&&j){p_data={...(p_data||{}),...j};}      }catch(err){}      try{        if(typeof window!=="undefined"&&window.FirebaseDB&&window.FirebaseDB.getUser){          const fbUser=await window.FirebaseDB.getUser(w);          if(fbUser){p_data={...(p_data||{}),...fbUser};}        }      }catch(fbErr){}      try{        const{data:u_auth}=await L.auth.getUser();        const u_email=u_auth?.user?.email;        const u_name=u_auth?.user?.user_metadata?.name||u_email?.split('@')[0]||'User';        const isAdminUser = isUserAdmin({email:u_email});        if(!p_data){          p_data={id:w,email:u_email,name:u_name,role:isAdminUser?'super_admin':'user',account_status:'active',status:'active',is_pro:isAdminUser,pro_status:isAdminUser?'active':'inactive',created_at:new Date().toISOString()};          try{await L.from('profiles').upsert(p_data)}catch(err){}        }else{          if(isAdminUser){            p_data={...p_data,role:'super_admin',is_pro:!0,pro_status:'active'};            try{await L.from('profiles').update({role:'super_admin',is_pro:!0,pro_status:'active'}).eq('id',w)}catch(err){}          }        }      }catch(e){}      if(p_data){        try {          const syncState = await getCloudSyncState();          const userOverrides = syncState.userStatusOverrides || {};          const cleanEmail = (p_data.email || "").trim().toLowerCase();          const uCloud = userOverrides[p_data.id] || (cleanEmail ? userOverrides[cleanEmail] : null);          if (uCloud) {            if (uCloud.account_status !== undefined) p_data.account_status = uCloud.account_status;            if (uCloud.status !== undefined) p_data.status = uCloud.status;            if (uCloud.is_pro !== undefined) p_data.is_pro = uCloud.is_pro;            if (uCloud.pro_status !== undefined) p_data.pro_status = uCloud.pro_status;            if (uCloud.pro_expires_at) p_data.pro_expires_at = uCloud.pro_expires_at;            if (uCloud.approved_expiry_date) p_data.approved_expiry_date = uCloud.approved_expiry_date;          }        } catch(err) {}        try {          const statusOverrides = JSON.parse(localStorage.getItem("admin_status_overrides") || "{}");          const sOverride = statusOverrides[p_data.id] || (p_data.email && (statusOverrides[p_data.email] || statusOverrides[p_data.email.toLowerCase().trim()]));          if (sOverride) {            const val = (typeof sOverride === "object" && sOverride.account_status) ? sOverride.account_status : sOverride;            if (typeof val === "string") {              p_data.account_status = val;              p_data.status = val;            }          }          const proOverrides = JSON.parse(localStorage.getItem("admin_pro_overrides") || "{}");          const pOverride = proOverrides[p_data.id] || (p_data.email && (proOverrides[p_data.email] || proOverrides[p_data.email.toLowerCase().trim()]));          if (pOverride) {            if (pOverride.is_pro !== undefined) p_data.is_pro = pOverride.is_pro;            if (pOverride.pro_status !== undefined) p_data.pro_status = pOverride.pro_status;            if (pOverride.pro_expires_at) p_data.pro_expires_at = pOverride.pro_expires_at;            if (pOverride.approved_expiry_date) p_data.approved_expiry_date = pOverride.approved_expiry_date;          }        } catch(err) {}        try{localStorage.setItem("mlb_saved_profile_"+w,JSON.stringify(p_data));}catch(err){}      }      l(p_data);    } catch(err) {      console.warn('Profile fetch failure:', err);    }  },[]),  d=m.useCallback(async()=>{const currentUser=userRef.current;currentUser&&await u(currentUser.id)},[u]);  m.useEffect(()=>{    let isMounted = true;    const safetyTimer = setTimeout(() => {      if (isMounted) c(false);    }, 1500);    try {      L.auth.getSession().then(async ({data:j})=>{        if (!isMounted) return;        var f,g;        const sessionUser = ((f=j.session)==null?void 0:f.user)??null;        if (sessionUser && sessionUser.email && !isUserAdmin({ email: sessionUser.email })) {          const chk = await checkDeviceLoginAllowedAsync(sessionUser.email, sessionUser.id);          if (!chk.allowed) {            try { await L.auth.signOut(); } catch(e) {}            userRef.current = null;            n(null);            s(null);            l(null);            if (isMounted) c(false);            return;          }        }        s(j.session);        userRef.current=sessionUser;        n(userRef.current);        if((g=j.session)!=null&&g.user){          u(j.session.user.id).catch(()=>{}).finally(()=>{ if(isMounted) c(false); });        } else {          if (isMounted) c(false);        }      }).catch(err => {        console.warn('getSession error:', err);        if (isMounted) c(false);      });    } catch(err) {      if (isMounted) c(false);    }    let unsub = null;    try {      const { data: w } = L.auth.onAuthStateChange(async (j,f)=>{        if (!isMounted) return;        const authUser = (f==null?void 0:f.user)??null;        if (authUser && authUser.email && !isUserAdmin({ email: authUser.email })) {          const chk = await checkDeviceLoginAllowedAsync(authUser.email, authUser.id);          if (!chk.allowed) {            try { await L.auth.signOut(); } catch(e) {}            userRef.current = null;            n(null);            s(null);            l(null);            return;          }        }        s(f);        userRef.current=authUser;        n(userRef.current);        if(f!=null&&f.user){          u(f.user.id).catch(()=>{});        } else {          l(null);        }      });      unsub = w?.subscription?.unsubscribe;    } catch(err) {}    const handleProfileSync = () => {      const currentUser=userRef.current;      if (currentUser) u(currentUser.id).catch(()=>{});    };    window.addEventListener("user_profile_updated", handleProfileSync);    window.addEventListener("user_status_changed", handleProfileSync);    window.addEventListener("recharge_status_updated", handleProfileSync);    window.addEventListener("storage", handleProfileSync);    window.addEventListener("focus", handleProfileSync);    document.addEventListener("visibilitychange", handleProfileSync);    return () => {      isMounted = false;      clearTimeout(safetyTimer);      if(unsub) unsub();      window.removeEventListener("user_profile_updated", handleProfileSync);      window.removeEventListener("user_status_changed", handleProfileSync);      window.removeEventListener("recharge_status_updated", handleProfileSync);      window.removeEventListener("storage", handleProfileSync);      window.removeEventListener("focus", handleProfileSync);      document.removeEventListener("visibilitychange", handleProfileSync);    };  },[u]);  const h=async(w,j,f)=>{try{const devCheck = await checkDeviceLoginAllowedAsync(w); if(!devCheck.allowed){ return { error: devCheck.message || "This app is already registered with another account. Please use the registered account." }; } const{data:resData,error:g}=await L.auth.signUp({email:w,password:j,options:{data:{name:f}}});if(g) return {error:(g==null?void 0:g.message)??null}; if(!isUserAdmin({email:w})){ await bindDeviceEmailAsync(w, resData?.user?.id, "password"); } return {error:null, data:resData}}catch(e){return{error:e.message||'Sign up failed'}}},  p=async(w,j)=>{try{const devCheck = await checkDeviceLoginAllowedAsync(w); if(!devCheck.allowed){ return { error: devCheck.message || "This app is already registered with another account. Please use the registered account." }; } const{data:resData,error:f}=await L.auth.signInWithPassword({email:w,password:j});if(f) return {error:(f==null?void 0:f.message)??null}; const checkAfter = await checkDeviceLoginAllowedAsync(resData?.user?.email || w, resData?.user?.id); if(!checkAfter.allowed){ try{ await L.auth.signOut(); }catch(e){} return { error: checkAfter.message || "This app is already registered with another account. Please use the registered account." }; } if(!isUserAdmin({email:w})){ await bindDeviceEmailAsync(w, resData?.user?.id, "password"); } return {error:null, data:resData}}catch(e){return{error:e.message||'Sign in failed'}}},  v=async()=>{try{await L.auth.signOut()}catch(e){}l(null)},  x=async w=>{try{const{error:j}=await L.auth.resetPasswordForEmail(w);return{error:(j==null?void 0:j.message)??null}}catch(e){return{error:e.message||'Reset failed'}}};    m.useEffect(function() {    if (t && i) {      try { checkProExpiryNotifications(t, i); } catch(e) {}      const interval = setInterval(function() {        try { checkProExpiryNotifications(t, i); } catch(e) {}      }, 3600000);      return function() { clearInterval(interval); };    }  }, [t, i]);  return a.jsx(Tp.Provider,{value:{user:t,session:r,profile:i,loading:o,signUp:h,signIn:p,signOut:v,resetPassword:x,refreshProfile:d},children:e})}function Ae(){const e=m.useContext(Tp);if(!e)throw new Error("useAuth must be used within AuthProvider");return e}/**
  * @license lucide-react v0.446.0 - ISC
  *
  * This source code is licensed under the ISC license.
@@ -4168,7 +4239,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: cleanEmail })) {
       const devCheck = await checkDeviceLoginAllowedAsync(cleanEmail);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         setShowGoogleModal(!1);
         x(!1);
         return;
@@ -4177,8 +4248,20 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     const gPass = "GoogleAuthPass_2026#Secure";
     let signInRes = await e(cleanEmail, gPass);
     if(signInRes && signInRes.error){
+      if(signInRes.error.includes("already registered with another account")){
+        r.show(signInRes.error, "error");
+        setShowGoogleModal(!1);
+        x(!1);
+        return;
+      }
       if(signInRes.error.includes("Invalid login credentials") || signInRes.error.includes("Email not confirmed") || signInRes.error.includes("user not found") || signInRes.error.includes("User not found")){
-        await t(cleanEmail, gPass, targetName || cleanEmail.split("@")[0]);
+        const signUpRes = await t(cleanEmail, gPass, targetName || cleanEmail.split("@")[0]);
+        if (signUpRes && signUpRes.error) {
+          r.show(signUpRes.error, "error");
+          setShowGoogleModal(!1);
+          x(!1);
+          return;
+        }
         signInRes = await e(cleanEmail, gPass);
       }
     }
@@ -4196,7 +4279,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
         localStorage.setItem("admin_pro_overrides", JSON.stringify(pros));
       }catch(err){}
     }
-    if(!isAdmin){ await bindDeviceEmailAsync(cleanEmail); }
+    if(!isAdmin){ await bindDeviceEmailAsync(cleanEmail, null, "google"); }
     r.show("Signed in as " + cleanEmail, "success");
     setShowGoogleModal(!1);
     if(rf) await rf();
@@ -4208,14 +4291,14 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: cleanEmail })) {
       const devCheck = await checkDeviceLoginAllowedAsync(cleanEmail);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         setShowGoogleModal(!1);
         x(!1);
         return;
       }
     }
     const isAdmin = isUserAdmin({ email: targetEmail });
-    if (!isAdmin) { await bindDeviceEmailAsync(cleanEmail); }
+    if (!isAdmin) { await bindDeviceEmailAsync(cleanEmail, null, "google"); }
     r.show("Signed in as " + targetEmail, "success");
     setShowGoogleModal(!1);
     const dest = isAdmin ? "/admin" : "/";
@@ -4237,7 +4320,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: o })) {
       const devCheck = await checkDeviceLoginAllowedAsync(o);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         x(!1);
         return;
       }
@@ -4248,7 +4331,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
       x(!1);
     } else {
       if (!isUserAdmin({ email: o })) {
-        await bindDeviceEmailAsync(o);
+        await bindDeviceEmailAsync(o, null, "password");
       }
       r.show("Account created! Please sign in.","success");
       l("signin");
@@ -4259,7 +4342,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: o })) {
       const devCheck = await checkDeviceLoginAllowedAsync(o);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         x(!1);
         return;
       }
@@ -4270,7 +4353,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
       r.show(f,"error");
     }else{
       if (!isUserAdmin({ email: o })) {
-        await bindDeviceEmailAsync(o);
+        await bindDeviceEmailAsync(o, null, "password");
       }
       r.show("Welcome back!","success");
       const dest = isUserAdmin({ email: o }) ? "/admin" : "/";

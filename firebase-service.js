@@ -237,6 +237,86 @@
   }
 
   // ----------------------------------------------------
+  // 1B. ACCOUNT LOCK (Single Authorized Account per App Install)
+  // ----------------------------------------------------
+  const ADMIN_EMAILS = ["silgrakmarak1309@gmail.com", "grejamarak@gmail.com", "megamarak8@gmail.com"];
+
+  function isEmailAdmin(email) {
+    if (!email) return false;
+    const clean = String(email).toLowerCase().trim();
+    return ADMIN_EMAILS.some(adm => adm.toLowerCase() === clean);
+  }
+
+  async function getAccountLock(forceFresh = false) {
+    if (!forceFresh && memoryCache.accountLock) return memoryCache.accountLock;
+    try {
+      const local = localStorage.getItem('mlb_account_lock');
+      if (local && !forceFresh) {
+        const parsed = JSON.parse(local);
+        if (parsed && (parsed.authorizedEmail || parsed.authorizedUid)) {
+          memoryCache.accountLock = parsed;
+        }
+      }
+    } catch(e) {}
+
+    try {
+      const data = await firestoreRequest('appSettings/accountLock');
+      if (data && data.fields) {
+        const fresh = firestoreFieldsToJs(data.fields);
+        if (fresh && (fresh.authorizedEmail || fresh.authorizedUid)) {
+          memoryCache.accountLock = fresh;
+          try { localStorage.setItem('mlb_account_lock', JSON.stringify(fresh)); } catch(e) {}
+          return fresh;
+        }
+      }
+      const data2 = await firestoreRequest('settings/account_lock');
+      if (data2 && data2.fields) {
+        const fresh2 = firestoreFieldsToJs(data2.fields);
+        if (fresh2 && (fresh2.authorizedEmail || fresh2.authorizedUid)) {
+          memoryCache.accountLock = fresh2;
+          try { localStorage.setItem('mlb_account_lock', JSON.stringify(fresh2)); } catch(e) {}
+          return fresh2;
+        }
+      }
+    } catch (err) {
+      console.warn('[Firebase] getAccountLock fetch error:', err);
+    }
+    return memoryCache.accountLock || null;
+  }
+
+  async function saveAccountLock(lockData) {
+    if (!lockData) return null;
+    const cleanEmail = String(lockData.authorizedEmail || '').toLowerCase().trim();
+    const payload = {
+      authorizedUid: lockData.authorizedUid || '',
+      authorizedEmail: cleanEmail,
+      authorizedProvider: lockData.authorizedProvider || 'password',
+      lockedAt: lockData.lockedAt || new Date().toISOString(),
+      isLocked: true
+    };
+    memoryCache.accountLock = payload;
+    try { localStorage.setItem('mlb_account_lock', JSON.stringify(payload)); } catch(e) {}
+
+    try {
+      const fields = jsToFirestoreFields(payload);
+      await Promise.allSettled([
+        firestoreRequest('appSettings/accountLock', {
+          method: 'PATCH',
+          body: JSON.stringify({ fields })
+        }),
+        firestoreRequest('settings/account_lock', {
+          method: 'PATCH',
+          body: JSON.stringify({ fields })
+        })
+      ]);
+      console.log('[Firebase] Account lock persistently saved to Firestore:', cleanEmail);
+    } catch(err) {
+      console.warn('[Firebase] Failed to save account lock to Firestore:', err);
+    }
+    return payload;
+  }
+
+  // ----------------------------------------------------
   // 2. LISTINGS (New Post Listing, Top PRO, Boosted, Deleted)
   // ----------------------------------------------------
   async function getListings(forceFresh = false) {
@@ -1230,6 +1310,8 @@
     config: FIREBASE_CONFIG,
     getSettings,
     saveSettings,
+    getAccountLock,
+    saveAccountLock,
     getListings,
     saveListing,
     updateListing,

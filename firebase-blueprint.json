@@ -87,6 +87,18 @@
         "updated_at": { "type": "string" }
       }
     },
+    "AccountLock": {
+      "title": "AccountLock",
+      "description": "App account registration lock ensuring only one authorized account per installation",
+      "type": "object",
+      "properties": {
+        "authorizedUid": { "type": "string" },
+        "authorizedEmail": { "type": "string" },
+        "authorizedProvider": { "type": "string" },
+        "lockedAt": { "type": "string" },
+        "isLocked": { "type": "boolean" }
+      }
+    },
     "Category": {
       "title": "Category",
       "description": "Marketplace category",
@@ -182,6 +194,10 @@
     "/settings/{settingId}": {
       "schema": { "$ref": "#/entities/AppSetting" },
       "description": "Global application configuration and UPI/QR settings"
+    },
+    "/appSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/AccountLock" },
+      "description": "App settings including device and account lock registry"
     },
     "/categories/{categoryId}": {
       "schema": { "$ref": "#/entities/Category" },
