@@ -9755,9 +9755,9 @@ function jj(){
     children:[
       a.jsxs(ky,{
         children:[
-          a.jsx(Ce,{path:'/',element:a.jsx(W1,{})}),
-          a.jsx(Ce,{path:'/search',element:a.jsx(V1,{})}),
-          a.jsx(Ce,{path:'/listing/:id',element:a.jsx(q1,{})}),
+          a.jsx(Ce,{path:'/',element:a.jsx(Pt,{children:a.jsx(W1,{})})}),
+          a.jsx(Ce,{path:'/search',element:a.jsx(Pt,{children:a.jsx(V1,{})})}),
+          a.jsx(Ce,{path:'/listing/:id',element:a.jsx(Pt,{children:a.jsx(q1,{})})}),
           a.jsx(Ce,{path:'/auth',element:a.jsx(K1,{})}),
           a.jsx(Ce,{path:'/post',element:a.jsx(Pt,{children:a.jsx(nj,{})})}),
           a.jsx(Ce,{path:'/favorites',element:a.jsx(Pt,{children:a.jsx(rj,{})})}),
