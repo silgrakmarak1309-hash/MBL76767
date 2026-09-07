@@ -1,0 +1,17 @@
+{
+  "name": "Meri Local Bazaar",
+  "short_name": "Local Bazaar",
+  "description": "Local community marketplace for buying, selling, and connecting locally in your city.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#ea580c",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

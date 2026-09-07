@@ -1,0 +1,90 @@
+[
+  {
+    "id": "3ed03846-ea53-4f52-9db5-17550b75f3f2",
+    "name": "Mobile Phones",
+    "icon": "Smartphone",
+    "sort_order": 1,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "acbee2f0-e3f9-4b5b-916c-531fa0d41ea3",
+    "name": "Electronics",
+    "icon": "Laptop",
+    "sort_order": 2,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "d1343112-a852-4f5c-915d-49dc40f37b52",
+    "name": "Vehicles",
+    "icon": "Car",
+    "sort_order": 3,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "75d6ad27-c26c-4733-a44e-0ff63dd171d0",
+    "name": "Property / House",
+    "icon": "Home",
+    "sort_order": 4,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "a74502b1-95ba-4422-a7e7-78909b6ef140",
+    "name": "Jobs",
+    "icon": "Briefcase",
+    "sort_order": 5,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "57b16622-d28d-467b-95e0-589b5ababd80",
+    "name": "Fashion",
+    "icon": "Shirt",
+    "sort_order": 6,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "708c150a-8c5a-4c99-aba9-2965348dd89a",
+    "name": "Services",
+    "icon": "Wrench",
+    "sort_order": 7,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "a214ef95-2e89-4fa9-9712-2151b43ba0cb",
+    "name": "Furniture",
+    "icon": "Sofa",
+    "sort_order": 8,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "fa9efd1a-8e70-4307-b2e4-869e7c448f37",
+    "name": "Home Appliances",
+    "icon": "Refrigerator",
+    "sort_order": 9,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "21cc41a2-cafa-4b07-adc6-d893bd7c9de5",
+    "name": "Agriculture",
+    "icon": "Wheat",
+    "sort_order": 10,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  },
+  {
+    "id": "759c0863-42c9-41fa-99b3-04214ce47c35",
+    "name": "Others",
+    "icon": "Tag",
+    "sort_order": 11,
+    "is_active": true,
+    "created_at": "2026-08-20T23:39:16.402544+00:00"
+  }
+]

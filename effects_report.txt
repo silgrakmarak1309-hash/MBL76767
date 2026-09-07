@@ -1,0 +1,481 @@
+Total m.useEffect calls found: 46
+
+================ useEffect #1 at index 594230 ================
+:i}=m.useContext(vt),{pathname:l}=it(),o=ke(),c=va(e,vc(i),l,r==="path"),u=JSON.stringify(c);return m.useEffect(()=>{o(JSON.parse(u),{replace:t,state:n,relative:r})},[o,u,r,t,n]),null}function Ce(e){te(!1,"A <Route> is only ever to be used as the child of <Routes> element, never rendered directly. Please wrap your <Route> in a <Routes>.")}function by({basename:e="/",children:t=null,location:n,navigationType:r="POP",navigator:s,static:i=!1,useTransitions:l}){te(!Rr(),"You cannot render a <Router>
+
+================ useEffect #2 at index 601839 ================
+m.useState(!1),{onFocus:o,onBlur:c,onMouseEnter:u,onMouseLeave:d,onTouchStart:h}=t,p=m.useRef(null);m.useEffect(()=>{if(e==="render"&&l(!0),e==="viewport"){let w=f=>{f.forEach(g=>{l(g.isIntersecting)})},j=new IntersectionObserver(w,{threshold:.5});return p.current&&j.observe(p.current),()=>{j.disconnect()}}},[e]),m.useEffect(()=>{if(r){let w=setTimeout(()=>{l(!0)},100);return()=>{clearTimeout(w)}}},[r]);let v=()=>{s(!0)},x=()=>{s(!1),l(!1)};return n?e!=="intent"?[i,p,{}]:[i,p,{onFocus:Hr(o,v),on
+
+================ useEffect #3 at index 602054 ================
+ectionObserver(w,{threshold:.5});return p.current&&j.observe(p.current),()=>{j.disconnect()}}},[e]),m.useEffect(()=>{if(r){let w=setTimeout(()=>{l(!0)},100);return()=>{clearTimeout(w)}}},[r]);let v=()=>{s(!0)},x=()=>{s(!1),l(!1)};return n?e!=="intent"?[i,p,{}]:[i,p,{onFocus:Hr(o,v),onBlur:Hr(c,x),onMouseEnter:Hr(u,v),onMouseLeave:Hr(d,x),onTouchStart:Hr(h,v)}]:[!1,p,{}]}function Hr(e,t){return n=>{e&&e(n),n.defaultPrevented||t(n)}}function Hy({page:e,...t}){let n=ty(),{nonce:r}=ja(),{router:s}=b
+
+================ useEffect #4 at index 602747 ================
+tches:i,...t})):null}function Wy(e){let{manifest:t,routeModules:n}=ja(),[r,s]=m.useState([]);return m.useEffect(()=>{let i=!1;return Iy(e,t,n).then(l=>{i||s(l)}),()=>{i=!0}},[e,t,n]),r}function Vy({page:e,matches:t,...n}){let r=it(),{future:s}=ja(),{basename:i}=bc(),l=m.useMemo(()=>{if(e===r.pathname+r.search+r.hash)return[];let o=ap(e,i,s.v8_trailingSlashAwareDataRequests,"rsc"),c=!1,u=[];for(let d of t)typeof d.route.shouldRevalidate=="function"?c=!0:u.push(d.route.id);return c&&u.length>0&&o.
+
+================ useEffect #5 at index 746840 ================
+file fetch failure:', err);
+    }
+  },[]),
+  d=m.useCallback(async()=>{t&&await u(t.id)},[t,u]);
+
+  m.useEffect(()=>{
+    let isMounted = true;
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) c(false);
+    }, 1500);
+
+    try {
+      L.auth.getSession().then(({data:j})=>{
+        if (!isMounted) return;
+        var f,g;
+        s(j.session);
+        n(((f=j.session)==null?void 0:f.user)??null);
+        if((g=j.session)!=null&&g.user){
+          u(j.session.user.id).catch(()=>{}).f
+
+================ useEffect #6 at index 749300 ================
+n{error:(j==null?void 0:j.message)??null}}catch(e){return{error:e.message||'Reset failed'}}};
+
+  
+  m.useEffect(function() {
+    if (t && i) {
+      try { checkProExpiryNotifications(t, i); } catch(e) {}
+      const interval = setInterval(function() {
+        try { checkProExpiryNotifications(t, i); } catch(e) {}
+      }, 3600000);
+      return function() { clearInterval(interval); };
+    }
+  }, [t, i]);
+  return a.jsx(Tp.Provider,{value:{user:t,session:r,profile:i,loading:o,signUp:h,signIn:p,si
+
+================ useEffect #7 at index 927808 ================
+ed, setAdFinished] = m.useState(false);
+  const [isClaiming, setIsClaiming] = m.useState(false);
+
+  m.useEffect(() => {
+    let interval;
+    if (adModalOpen && adTimer > 0) {
+      interval = setInterval(() => {
+        setAdTimer(prev => {
+          if (prev <= 1) {
+            setAdFinished(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [adModalOpen, adTimer]);
+
+  const handleStartAds = () =>
+
+================ useEffect #8 at index 939841 ================
+te(!0),[S,b]=m.useState(!1),[N,I]=m.useState(new Set),[P,K]=m.useState(0),[ls,setLs]=m.useState("");m.useEffect(()=>{const E=setTimeout(()=>o(s),300);return()=>clearTimeout(E)},[s]),m.useEffect(()=>{Ac().then(w).catch(()=>n.show("Failed to load categories","error")),$c().then(f).catch(()=>n.show("Failed to load locations","error")),p1().then(y).catch(()=>{})},[n]);const O=m.useCallback(async()=>{k(!0);try{const E=await Vp({search:l||void 0,locationId:d||void 0,limit:50});v(E)}catch{n.show("Faile
+
+================ useEffect #9 at index 939923 ================
+s]=m.useState("");m.useEffect(()=>{const E=setTimeout(()=>o(s),300);return()=>clearTimeout(E)},[s]),m.useEffect(()=>{Ac().then(w).catch(()=>n.show("Failed to load categories","error")),$c().then(f).catch(()=>n.show("Failed to load locations","error")),p1().then(y).catch(()=>{})},[n]);const O=m.useCallback(async()=>{k(!0);try{const E=await Vp({search:l||void 0,locationId:d||void 0,limit:50});v(E)}catch{n.show("Failed to load listings","error")}finally{k(!1)}},[l,d,n]);m.useEffect(()=>{O()},[O]),m
+
+================ useEffect #10 at index 940295 ================
+:d||void 0,limit:50});v(E)}catch{n.show("Failed to load listings","error")}finally{k(!1)}},[l,d,n]);m.useEffect(()=>{O()},[O]),m.useEffect(()=>{e&&(syncLocalListingsToSupabase().then(()=>O()).catch(()=>{}),Yp(e.id).then(I).catch(()=>{}))},[e]),m.useEffect(()=>{if(g.length>1){const E=setInterval(()=>{if(typeof document!=="undefined"&&document.hidden)return;K(z=>(z+1)%g.length);},5e3);return()=>clearInterval(E)}},[g.length]);const M=async E=>{if(!e){n.show("Please sign in to save favorites","info"
+
+================ useEffect #11 at index 940322 ================
+catch{n.show("Failed to load listings","error")}finally{k(!1)}},[l,d,n]);m.useEffect(()=>{O()},[O]),m.useEffect(()=>{e&&(syncLocalListingsToSupabase().then(()=>O()).catch(()=>{}),Yp(e.id).then(I).catch(()=>{}))},[e]),m.useEffect(()=>{if(g.length>1){const E=setInterval(()=>{if(typeof document!=="undefined"&&document.hidden)return;K(z=>(z+1)%g.length);},5e3);return()=>clearInterval(E)}},[g.length]);const M=async E=>{if(!e){n.show("Please sign in to save favorites","info"),r("/auth");return}const z
+
+================ useEffect #12 at index 940439 ================
+e&&(syncLocalListingsToSupabase().then(()=>O()).catch(()=>{}),Yp(e.id).then(I).catch(()=>{}))},[e]),m.useEffect(()=>{if(g.length>1){const E=setInterval(()=>{if(typeof document!=="undefined"&&document.hidden)return;K(z=>(z+1)%g.length);},5e3);return()=>clearInterval(E)}},[g.length]);const M=async E=>{if(!e){n.show("Please sign in to save favorites","info"),r("/auth");return}const z=N.has(E);I(fe=>{const C=new Set(fe);return z?C.delete(E):C.add(E),C});try{z?await Ea(e.id,E):await Ca(e.id,E)}catch{
+
+================ useEffect #13 at index 948544 ================
+State([]),[K,O]=m.useState([]),[M,G]=m.useState(!0),[E,z]=m.useState(!1),[fe,C]=m.useState(new Set);m.useEffect(()=>{Ac().then(P).catch(()=>{}),$c().then(O).catch(()=>{})},[]),m.useEffect(()=>{const U=setTimeout(()=>c(i),300);return()=>clearTimeout(U)},[i]),m.useEffect(()=>{e&&Yp(e.id).then(C).catch(()=>{})},[e]);const T=m.useCallback(async()=>{G(!0);try{const U=await Vp({search:o||void 0,categoryId:u||void 0,locationId:h||void 0,condition:v||void 0,minPrice:w?Number(w):void 0,maxPrice:f?Number(
+
+================ useEffect #14 at index 948620 ================
+,C]=m.useState(new Set);m.useEffect(()=>{Ac().then(P).catch(()=>{}),$c().then(O).catch(()=>{})},[]),m.useEffect(()=>{const U=setTimeout(()=>c(i),300);return()=>clearTimeout(U)},[i]),m.useEffect(()=>{e&&Yp(e.id).then(C).catch(()=>{})},[e]);const T=m.useCallback(async()=>{G(!0);try{const U=await Vp({search:o||void 0,categoryId:u||void 0,locationId:h||void 0,condition:v||void 0,minPrice:w?Number(w):void 0,maxPrice:f?Number(f):void 0,proOnly:y,sortBy:k,limit:50});N(U)}catch{t.show("Failed to load li
+
+================ useEffect #15 at index 948702 ================
+atch(()=>{})},[]),m.useEffect(()=>{const U=setTimeout(()=>c(i),300);return()=>clearTimeout(U)},[i]),m.useEffect(()=>{e&&Yp(e.id).then(C).catch(()=>{})},[e]);const T=m.useCallback(async()=>{G(!0);try{const U=await Vp({search:o||void 0,categoryId:u||void 0,locationId:h||void 0,condition:v||void 0,minPrice:w?Number(w):void 0,maxPrice:f?Number(f):void 0,proOnly:y,sortBy:k,limit:50});N(U)}catch{t.show("Failed to load listings","error")}finally{G(!1)}},[o,u,h,v,w,f,y,k,t]);m.useEffect(()=>{T()},[T]);c
+
+================ useEffect #16 at index 949074 ================
+imit:50});N(U)}catch{t.show("Failed to load listings","error")}finally{G(!1)}},[o,u,h,v,w,f,y,k,t]);m.useEffect(()=>{T()},[T]);const D=async U=>{if(!e){t.show("Please sign in to save favorites","info"),n("/auth");return}const Mn=fe.has(U);C(Et=>{const Ht=new Set(Et);return Mn?Ht.delete(U):Ht.add(U),Ht});try{Mn?await Ea(e.id,U):await Ca(e.id,U)}catch{t.show("Failed to update favorite","error")}},W=()=>{d(""),p(""),x(""),j(""),g(""),_(!1),S("latest")},V=[u,h,v,w,f].filter(Boolean).length+(y?1:0);r
+
+================ useEffect #17 at index 954100 ================
+iled to load listing", "error");
+      } finally {
+        o(!1);
+      }
+    }
+  }, [e, n, r]);
+
+  m.useEffect(() => { x(); }, [x]);
+
+  const w = async () => {
+    if (!n) {
+      r.show("Please sign in to save favorites", "info");
+      t("/auth");
+      return;
+    }
+    if (!s) return;
+    const S = c;
+    u(!S);
+    try {
+      if (S) await Ea(n.id, s.id);
+      else await Ca(n.id, s.id);
+    } catch {
+      u(S);
+      r.show("Failed to update favorite", "error");
+    }
+  };
+
+  const j = a
+
+================ useEffect #18 at index 967980 ================
+ction K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:currU}=Ae(),r=he(),s=ke();m.useEffect(()=>{if(currU)s("/")},[currU,s]);const[i,l]=m.useState("signin"),[o,c]=m.useState(""),[u,d]=m.useState(""),[h,p]=m.useState(""),[v,x]=m.useState(!1),[showGoogleModal,setShowGoogleModal]=m.useState(!1),[customEmail,setCustomEmail]=m.useState(""),[customName,setCustomName]=m.useState("");const performGoogleSignIn=async(targetEmail,targetName)=>{
+  x(!0);
+  try{
+    const cleanEmail = (ta
+
+================ useEffect #19 at index 998880 ================
+oSent]=m.useState(!1),
+       [G,E]=m.useState(!1), [paySettings, setPaySettings]=m.useState({});
+  m.useEffect(()=>{
+    const loadPay = () => { tj().then(setPaySettings).catch(()=>{}); };
+    loadPay();
+    if(typeof window!=="undefined"){ window.addEventListener("app_settings_updated", loadPay); }
+    return ()=>{ if(typeof window!=="undefined"){ window.removeEventListener("app_settings_updated", loadPay); } };
+  },[]);
+  const boostUpiId = (paySettings.upi_id || "grejamarak@oksbi").trim();
+ 
+
+================ useEffect #20 at index 999615 ================
+?pa=" + boostUpiId + "&pn=Meri%20Local%20Bazaar&am=30&cu=INR&tn=Top%20PRO%20Listing%20Boost"));
+
+
+  m.useEffect(()=>{
+    Ac().then(i).catch(()=>{});
+    $c().then(o).catch(()=>{});
+    Xp().then(u).catch(()=>{});
+  },[]);
+
+  // Update district when state changes
+  m.useEffect(()=>{
+    const distList = INDIAN_STATES_DISTRICTS[selectedState] || [];
+    if(distList.length > 0 && !distList.includes(selectedDistrict)){
+      setSelectedDistrict(distList[0]);
+    }
+  },[selectedState]);
+
+  if(!e)ret
+
+================ useEffect #21 at index 999781 ================
+.catch(()=>{});
+    Xp().then(u).catch(()=>{});
+  },[]);
+
+  // Update district when state changes
+  m.useEffect(()=>{
+    const distList = INDIAN_STATES_DISTRICTS[selectedState] || [];
+    if(distList.length > 0 && !distList.includes(selectedDistrict)){
+      setSelectedDistrict(distList[0]);
+    }
+  },[selectedState]);
+
+  if(!e)return a.jsxs("div",{className:"min-h-screen flex flex-col items-center justify-center gap-4 px-4",children:[a.jsx("p",{className:"text-gray-600 text-sm",children:"Pleas
+
+================ useEffect #22 at index 1017470 ================
+(new Set(h.map(p=>p.listing_id)))}catch{t.show("Failed to load favorites","error")}finally{l(!1)}}};m.useEffect(()=>{u()},[e]);const d=async h=>{if(!e)return;const p=o.has(h);c(v=>{const x=new Set(v);return p?x.delete(h):x.add(h),x}),s(v=>v.filter(x=>x.listing_id!==h));try{p?await Ea(e.id,h):await Ca(e.id,h)}catch{t.show("Failed to update favorite","error"),u()}};return e?a.jsxs("div",{className:"min-h-screen pb-20 md:pb-8 bg-gray-50",children:[a.jsxs("div",{className:"sticky top-0 z-40 bg-white
+
+================ useEffect #23 at index 1019490 ================
+find(I=>I.id===n);o(N||null)}}catch{r.show("Failed to load chats","error")}finally{v(!1)}},[e,n,r]);m.useEffect(()=>{if(y(),e){const b=B1(e.id,()=>y());return()=>b()}},[y,e]),m.useEffect(()=>{if(!n){o(null),u([]);return}w(!0),M1(n).then(async N=>{u(N),e&&await jd(n,e.id)}).catch(()=>r.show("Failed to load messages","error")).finally(()=>w(!1));const b=z1(n,async N=>{u(I=>[...I,N]),e&&N.receiver_id===e.id&&await jd(n,e.id)});return()=>b()},[n,e,r]),m.useEffect(()=>{var b;(b=g.current)==null||b.sc
+
+================ useEffect #24 at index 1019565 ================
+finally{v(!1)}},[e,n,r]);m.useEffect(()=>{if(y(),e){const b=B1(e.id,()=>y());return()=>b()}},[y,e]),m.useEffect(()=>{if(!n){o(null),u([]);return}w(!0),M1(n).then(async N=>{u(N),e&&await jd(n,e.id)}).catch(()=>r.show("Failed to load messages","error")).finally(()=>w(!1));const b=z1(n,async N=>{u(I=>[...I,N]),e&&N.receiver_id===e.id&&await jd(n,e.id)});return()=>b()},[n,e,r]),m.useEffect(()=>{var b;(b=g.current)==null||b.scrollIntoView({behavior:"smooth"})},[c]);const _=async b=>{if(b.preventDefau
+
+================ useEffect #25 at index 1019842 ================
+b=z1(n,async N=>{u(I=>[...I,N]),e&&N.receiver_id===e.id&&await jd(n,e.id)});return()=>b()},[n,e,r]),m.useEffect(()=>{var b;(b=g.current)==null||b.scrollIntoView({behavior:"smooth"})},[c]);const _=async b=>{if(b.preventDefault(),!d.trim()||!l||!e)return;const N=d.trim();h(""),f(!0);try{const I=l.buyer_id===e.id?l.seller_id:l.buyer_id;await F1(l.id,e.id,I,N),u(P=>P),y()}catch{r.show("Failed to send message","error"),h(N)}finally{f(!1)}};if(!e)return a.jsxs("div",{className:"min-h-screen flex flex-
+
+================ useEffect #26 at index 1024425 ================
+,[g,y]=m.useState((t==null?void 0:t.whatsapp)||""),[_,k]=m.useState((t==null?void 0:t.city)||"");if(m.useEffect(()=>{t&&(w(t.name),f(t.phone),y(t.whatsapp),k(t.city))},[t]),m.useEffect(()=>{e&&qp(e.id).then(v).catch(()=>{})},[e]),!e||!t)return a.jsxs("div",{className:"min-h-screen flex flex-col items-center justify-center gap-4 px-4",children:[a.jsx(kr,{className:"w-12 h-12 text-gray-300"}),a.jsx("p",{className:"text-gray-600 text-sm",children:"Sign in to view your account."}),a.jsx("button",{on
+
+================ useEffect #27 at index 1024498 ================
+ull?void 0:t.city)||"");if(m.useEffect(()=>{t&&(w(t.name),f(t.phone),y(t.whatsapp),k(t.city))},[t]),m.useEffect(()=>{e&&qp(e.id).then(v).catch(()=>{})},[e]),!e||!t)return a.jsxs("div",{className:"min-h-screen flex flex-col items-center justify-center gap-4 px-4",children:[a.jsx(kr,{className:"w-12 h-12 text-gray-300"}),a.jsx("p",{className:"text-gray-600 text-sm",children:"Sign in to view your account."}),a.jsx("button",{onClick:()=>i("/auth"),className:"btn-primary",children:"Sign In"})]});cons
+
+================ useEffect #28 at index 1037992 ================
+, setIsSubmittingBoost] = m.useState(!1);
+  const [paySettings, setPaySettings] = m.useState({});
+  m.useEffect(()=>{
+    const loadPay = () => { tj().then(setPaySettings).catch(()=>{}); };
+    loadPay();
+    if(typeof window!=="undefined"){ window.addEventListener("app_settings_updated", loadPay); }
+    return ()=>{ if(typeof window!=="undefined"){ window.removeEventListener("app_settings_updated", loadPay); } };
+  },[]);
+  const boostUpiId = (paySettings.upi_id || "grejamarak@oksbi").trim();
+ 
+
+================ useEffect #29 at index 1038896 ================
+await qp(e.id))}catch{t.show("Failed to load your ads","error")}finally{l(!1)}
+    }
+  },[e,t]);
+
+  m.useEffect(()=>{w()},[w]);
+
+  const j=async()=>{
+    if(u){
+      x(!0);
+      try{await u1(u);t.show("Listing deleted","success");d(null);w();}catch{t.show("Failed to delete listing","error")}finally{x(!1)}
+    }
+  };
+
+  const f=async()=>{
+    if(h){
+      x(!0);
+      try{await d1(h);t.show("Listing marked as sold","success");p(null);w();}catch{t.show("Failed to mark as sold","error")}finally{x
+
+================ useEffect #30 at index 1052989 ================
+d to load recharge data", "error");
+      } finally {
+        x(!1);
+      }
+    }
+  }, [e, r]);
+
+  m.useEffect(() => {
+    I();
+    const onSettingsUpdate = () => I();
+    if(typeof window!=="undefined") window.addEventListener("app_settings_updated", onSettingsUpdate);
+    return () => { if(typeof window!=="undefined") window.removeEventListener("app_settings_updated", onSettingsUpdate); };
+  }, [I]);
+
+  if (!e) {
+    return a.jsxs("div", {
+      className: "min-h-screen flex flex-col items-ce
+
+================ useEffect #31 at index 1080432 ================
+ t.show("Failed to load notifications", "error"); }
+      finally { l(!1); }
+    }
+  }, [e, t]);
+
+  m.useEffect(function() { o(); }, [o]);
+
+  const c = async function(h) {
+    try {
+      await L.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", h);
+      s(function(p) { return p.map(function(v) { return v.id === h ? Object.assign({}, v, { read_at: new Date().toISOString() }) : v; }); });
+    } catch(err) { t.show("Failed to mark as read", "error"); }
+  };
+
+  const u =
+
+================ useEffect #32 at index 1088876 ================
+l post requests:", err);
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  }, []);
+
+  m.useEffect(() => {
+    loadData(true);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadData(false);
+    }, 10000);
+    const handleSync = () => { loadData(false); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("listing_created", handleSync);
+   
+
+================ useEffect #33 at index 1118203 ================
+stings(listings);
+    } catch(err) {
+    } finally {
+      if (isInitial) s(!1);
+    }
+  }, []);
+
+  m.useEffect(() => {
+    v(true);
+    const interval = setInterval(()=>{if(typeof document!=="undefined"&&document.hidden)return;v(false);}, 15000);
+    const handleSync = () => { v(false); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("recharge_request_created", handleSync);
+      window.addEventListener("recharge_st
+
+================ useEffect #34 at index 1132210 ================
+ isUserAdmin(e) || isUserAdmin(authUser) || (authUser && isUserAdmin({ email: authUser.email }));
+  m.useEffect(() => {
+    if (!t && !isAdmin) {
+      n("/");
+    }
+  }, [isAdmin, t, n]);
+
+  const loadNotifs = m.useCallback(async () => {
+    try {
+      const list = await getAdminNotifications();
+      setAdminNotifs(list);
+    } catch(err) {}
+  }, []);
+
+  m.useEffect(() => {
+    loadNotifs();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden)
+
+================ useEffect #35 at index 1132470 ================
+ list = await getAdminNotifications();
+      setAdminNotifs(list);
+    } catch(err) {}
+  }, []);
+
+  m.useEffect(() => {
+    loadNotifs();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadNotifs();
+    }, 8000);
+
+    const handleNewAdminNotif = (ev) => {
+      loadNotifs();
+      if (ev && ev.detail) {
+        setToastNotif(ev.detail);
+        setTimeout(() => { setToastNotif(null); }, 6500);
+      }
+    };
+
+    const handleS
+
+================ useEffect #36 at index 1134697 ================
+.status === "unreviewed")).length;
+      setPostPendingCount(pCount);
+    } catch(e) {}
+  }, []);
+  m.useEffect(() => {
+    loadPostPendingCount();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadPostPendingCount();
+    }, 10000);
+    const handleSync = () => { loadPostPendingCount(); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("listing_created", handleSync);
+      window.addEventListener("list
+
+================ useEffect #37 at index 1154367 ================
+>{Promise.all([Ic(),Gp(),Jp(),Qp()]).then(([p,v,x,w])=>{r(p),i(v),o(x),u(w)}).catch(()=>{})},[]);
+  m.useEffect(()=>{loadData();t(!1);},[loadData]);
+  if(e)return a.jsx("div",{className:"flex justify-center py-12",children:a.jsx(xe,{size:32})});
+  
+  const topProCount = l.filter(p=>p.plan_id==="plan_single_top_pro" || p.amount===30 || p.amount===20 || p.amount===10 || p.is_top_pro).length;
+  
+  const d=[
+    {label:"Total Users",value:n.length,icon:_o,color:"blue"},
+    {label:"Active Users",val
+
+================ useEffect #38 at index 1158141 ================
+  t.show("Failed to load users", "error");
+      } finally {
+        i(!1);
+      }
+    }, [t]);
+
+  m.useEffect(() => { _(); }, [_]);
+
+  const k = m.useMemo(() => {
+    const query = (l || "").trim().toLowerCase();
+    const seen = new Set();
+    const unique = [];
+    (n || []).forEach(u => {
+      if (!u) return;
+      const cleanEmail = (u.email || "").trim().toLowerCase();
+      const uId = u.id || u.user_id;
+      const key = cleanEmail || uId;
+      if (!key || seen.has(key)) return;
+     
+
+================ useEffect #39 at index 1177436 ================
+
+      e.show("Failed to load listings", "error");
+    } finally {
+      s(!1);
+    }
+  }, [e]);
+
+  m.useEffect(() => {
+    v();
+  }, [v]);
+
+  const x = t.filter(f => {
+    var g, y;
+    return !(
+      (i && !f.title.toLowerCase().includes(i.toLowerCase()) && !((y = (g = f.seller) == null ? void 0 : g.name) != null && y.toLowerCase().includes(i.toLowerCase()))) ||
+      (o === "pro" ? !f.is_featured : o !== "all" && f.status !== o)
+    );
+  });
+
+  const w = async (f, g, y) => {
+    p(!0);
+    t
+
+================ useEffect #40 at index 1200222 ================
+n requests", "error");
+    } finally {
+      if (isInitial) setLoading(!1);
+    }
+  }, [toast]);
+
+  m.useEffect(() => {
+    loadData(!0);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadData(!1);
+    }, 12000);
+    const handleSync = () => { loadData(!1); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("recharge_request_created", handleSync);
+  
+
+================ useEffect #41 at index 1227319 ================
+ailed to load transactions", "error");
+    } finally {
+      setLoading(!1);
+    }
+  }, [toast]);
+  m.useEffect(() => { loadData(); }, [loadData]);
+  if (loading) return a.jsx("div", { className: "flex justify-center py-12", children: a.jsx(xe, { size: 32 }) });
+return a.jsxs("div", {
+    className: "space-y-4",
+    children: [
+      a.jsxs("div", {
+        className: "flex items-center justify-between flex-wrap gap-2",
+        children: [
+          a.jsxs("div", {
+            children: [
+      
+
+================ useEffect #42 at index 1234854 ================
+ync()=>{i(!0);try{r(await m1())}catch{e.show("Failed to load banners","error")}finally{i(!1)}},[e]);m.useEffect(()=>{P()},[P]);const K=c||!!l,O=async()=>{if(!g){e.show("Please upload a banner image","error");return}v(!0);try{const E={title:x,description:j,image_url:g,target_url:_,is_active:S,sort_order:Number(N)};l&&(E.id=l.id),await R1(E),e.show(l?"Banner updated":"Banner created","success"),o(null),u(!1),P()}catch(E){e.show(E instanceof Error?E.message:"Failed to save","error")}finally{v(!1)}}
+
+================ useEffect #43 at index 1240493 ================
+lback(async()=>{s(!0);try{n(await g1())}catch{e.show("Failed to load","error")}finally{s(!1)}},[e]);m.useEffect(()=>{k()},[k]);const S=async()=>{if(!v.trim()){e.show("Name is required","error");return}p(!0);try{const N={name:v.trim(),icon:w,sort_order:Number(f),is_active:y};i&&(N.id=i.id),await N1(N),e.show(i?"Category updated":"Category created","success"),l(null),c(!1),k()}catch(N){e.show(N instanceof Error?N.message:"Failed","error")}finally{p(!1)}},b=async()=>{if(u)try{await C1(u),e.show("Ca
+
+================ useEffect #44 at index 1244686 ================
+lback(async()=>{s(!0);try{n(await y1())}catch{e.show("Failed to load","error")}finally{s(!1)}},[e]);m.useEffect(()=>{b()},[b]);const N=t.filter(O=>O.level===1),I=t.filter(O=>O.level===2),P=async()=>{if(!v.trim()){e.show("Name is required","error");return}p(!0);try{const O={name:v.trim(),sort_order:Number(w),is_active:f,level:Number(k),parent_id:k==="2"&&y?y:null};i&&(O.id=i.id),await E1(O),e.show(i?"Location updated":"Location created","success"),l(null),c(!1),b()}catch(O){e.show(O instanceof Er
+
+================ useEffect #45 at index 1250405 ================
+lback(async()=>{s(!0);try{n(await v1())}catch{e.show("Failed to load","error")}finally{s(!1)}},[e]);m.useEffect(()=>{b()},[b]);const N=async()=>{if(!v.trim()){e.show("Name is required","error");return}p(!0);try{const P={name:v.trim(),price:Number(w),duration_days:Number(f),is_active:y,sort_order:Number(k)};i&&(P.id=i.id),await L1(P),e.show(i?"Plan updated":"Plan created","success"),l(null),c(!1),b()}catch(P){e.show(P instanceof Error?P.message:"Failed","error")}finally{p(!1)}},I=async()=>{if(u)t
+
+================ useEffect #46 at index 1254992 ================
+ load settings", "error");
+          } finally {
+            s(!1);
+          }
+        }, [e]);
+
+  m.useEffect(() => { u(); }, [u]);
+
+  const d = [
+    { key: "upi_id", label: "UPI ID", type: "text", isPublic: !0, help: "The UPI ID users will see for PRO payment." },
+    { key: "payment_instructions", label: "Payment Instructions", type: "textarea", isPublic: !0 },
+    { key: "tutorial_video_url", label: "Tutorial Video URL", type: "text", isPublic: !0 },
+    { key: "tutorial_video_title", labe

@@ -1,0 +1,6 @@
+{
+  "name": "Meri Local Bazaar",
+  "description": "Buy and sell products, services, vehicles, property, and more in your local bazaar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

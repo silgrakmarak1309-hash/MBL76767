@@ -1,0 +1,117 @@
+--- at 646798 ---
+3,1e4],Gv=1e4,Jv=`
+  addEventListener("message", (e) => {
+    if (e.data.event === "start") {
+      setInterval(() => postMessage({ event: "keepAlive" }), e.data.interval);
+    }
+  });`;class Qv{constructor(t,n){var r;if(this.accessTokenValue=null,this.apiKey=null,this.channels=new Array,this.endPoi
+
+--- at 653674 ---
+pen")}_startHeartbeat(){this.heartbeatTimer&&clearInterval(this.heartbeatTimer),this.heartbeatTimer=setInterval(()=>this.sendHeartbeat(),this.heartbeatIntervalMs)}_startWorkerHeartbeat(){this.workerUrl?this.log("worker",`starting worker for from ${this.workerUrl}`):this.log("worker","starting defaul
+
+--- at 725565 ---
+async _startAutoRefresh(){await this._stopAutoRefresh(),this._debug("#_startAutoRefresh()");const t=setInterval(()=>this._autoRefreshTokenTick(),Kn);this.autoRefreshTicker=t,t&&typeof t=="object"&&typeof t.unref=="function"?t.unref():typeof Deno<"u"&&typeof Deno.unrefTimer=="function"&&Deno.unrefTim
+
+--- at 750838 ---
+    if (t && i) {      try { checkProExpiryNotifications(t, i); } catch(e) {}      const interval = setInterval(function() {        try { checkProExpiryNotifications(t, i); } catch(e) {}      }, 3600000);      return function() { clearInterval(interval); };    }  }, [t, i]);  return a.jsx(Tp.Provide
+
+--- at 910317 ---
+e);
+
+  m.useEffect(() => {
+    let interval;
+    if (adModalOpen && adTimer > 0) {
+      interval = setInterval(() => {
+        setAdTimer(prev => {
+          if (prev <= 1) {
+            setAdFinished(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+  
+
+--- at 924662 ---
+]);
+
+  // Banner carousel auto rotate
+  m.useEffect(() => {
+    if (g.length > 1) {
+      const E = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        K(z => (z + 1) % g.length);
+      }, 5000);
+      return () => clearInterval(E);
+    }
+  }, [g.lengt
+
+--- at 1075354 ---
+ setLoading(false);
+    }
+  }, []);
+
+  m.useEffect(() => {
+    loadData(true);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadData(false);
+    }, 10000);
+    const handleSync = () => { loadData(false); };
+    if (typeof window
+
+--- at 1104627 ---
+     if (isInitial) s(!1);
+    }
+  }, []);
+
+  m.useEffect(() => {
+    v(true);
+    const interval = setInterval(()=>{if(typeof document!=="undefined"&&document.hidden)return;v(false);}, 15000);
+    const handleSync = () => { v(false); };
+    if (typeof window !== "undefined") {
+      window.addEvent
+
+--- at 1117416 ---
+(list);
+    } catch(err) {}
+  }, []);
+
+  m.useEffect(() => {
+    loadNotifs();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadNotifs();
+    }, 8000);
+
+    const handleNewAdminNotif = (ev) => {
+      loadNotifs();
+      if (ev 
+
+--- at 1119598 ---
+
+    } catch(e) {}
+  }, []);
+  m.useEffect(() => {
+    loadPostPendingCount();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadPostPendingCount();
+    }, 10000);
+    const handleSync = () => { loadPostPendingCount(); };
+    if 
+
+--- at 1185085 ---
+ setLoading(!1);
+    }
+  }, [toast]);
+
+  m.useEffect(() => {
+    loadData(!0);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadData(!1);
+    }, 12000);
+    const handleSync = () => { loadData(!1); };
+    if (typeof window !== "
+

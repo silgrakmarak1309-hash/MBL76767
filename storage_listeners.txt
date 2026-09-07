@@ -1,0 +1,46 @@
+--- storage at 749368 ---
+leProfileSync);    window.addEventListener("recharge_status_updated", handleProfileSync);    window.addEventListener("storage", handleProfileSync);    window.addEventListener("focus", handleProfileSync);    document.addEventListener("visibilitychange", handleProfileSync);    return () => {      isMo
+
+--- storage at 1075587 ---
+onst handleSync = () => { loadData(false); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("listing_created", handleSync);
+      window.addEventListener("listing_status_updated", handleSync);
+      window.addEventListene
+
+--- storage at 1104819 ---
+;
+    const handleSync = () => { v(false); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("recharge_request_created", handleSync);
+      window.addEventListener("recharge_status_updated", handleSync);
+      return () =>
+
+--- storage at 1118067 ---
+d", handleSync);
+      window.addEventListener("recharge_status_updated", handleSync);
+      window.addEventListener("storage", handleSync);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("admin_notification_received", handleNewAdminNotif);
+        window.re
+
+--- storage at 1120038 ---
+s_updated", handleSync);
+      window.addEventListener("listing_deleted", handleSync);
+      window.addEventListener("storage", handleSync);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("listing_created", handleSync);
+        window.removeEventListener("li
+
+--- storage at 1185312 ---
+  const handleSync = () => { loadData(!1); };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("recharge_request_created", handleSync);
+      window.addEventListener("recharge_status_updated", handleSync);
+      return () =>
+

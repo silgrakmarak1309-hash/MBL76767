@@ -1,0 +1,207 @@
+{
+  "entities": {
+    "Listing": {
+      "title": "Listing",
+      "description": "Marketplace item listing posted by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category_id": { "type": "string" },
+        "location": { "type": "object" },
+        "images": { "type": "array" },
+        "status": { "type": "string" },
+        "is_top_pro": { "type": "boolean" },
+        "is_boosted": { "type": "boolean" },
+        "user_id": { "type": "string" },
+        "user_email": { "type": "string" },
+        "user_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["title", "user_id"]
+    },
+    "RechargeRequest": {
+      "title": "RechargeRequest",
+      "description": "Payment and boost recharge request submitted by user for Admin verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "user_name": { "type": "string" },
+        "user_email": { "type": "string" },
+        "user_phone": { "type": "string" },
+        "amount": { "type": "number" },
+        "plan_id": { "type": "string" },
+        "plan_name": { "type": "string" },
+        "utr": { "type": "string" },
+        "payment_proof_url": { "type": "string" },
+        "status": { "type": "string" },
+        "type": { "type": "string" },
+        "is_top_pro": { "type": "boolean" },
+        "listing_id": { "type": "string" },
+        "listing_title": { "type": "string" },
+        "rejection_reason": { "type": "string" },
+        "submitted_at": { "type": "string" },
+        "approved_expiry_date": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["user_id", "amount", "status"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and account controls",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "avatar_url": { "type": "string" },
+        "account_status": { "type": "string" },
+        "is_admin": { "type": "boolean" },
+        "role": { "type": "string" },
+        "subscription_expiry": { "type": "string" },
+        "pro_plan": { "type": "string" },
+        "free_posts_remaining": { "type": "number" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "email"]
+    },
+    "AppSetting": {
+      "title": "AppSetting",
+      "description": "Platform settings including UPI ID and QR code",
+      "type": "object",
+      "properties": {
+        "upi_id": { "type": "string" },
+        "qr_code_url": { "type": "string" },
+        "site_name": { "type": "string" },
+        "support_phone": { "type": "string" },
+        "support_email": { "type": "string" },
+        "updated_at": { "type": "string" }
+      }
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Marketplace category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" },
+        "sort_order": { "type": "number" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "India State, District and Block location records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "state": { "type": "string" },
+        "district": { "type": "string" },
+        "block": { "type": "string" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Transaction logs and expiry dates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "user_email": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "date": { "type": "string" },
+        "expiry_date": { "type": "string" },
+        "plan_name": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["user_id", "amount", "status"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Marketplace promotion banners",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "image_url": { "type": "string" },
+        "link": { "type": "string" },
+        "is_active": { "type": "boolean" },
+        "sort_order": { "type": "number" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User and admin notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "read_at": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["title", "message"]
+    }
+  },
+  "firestore": {
+    "/listings/{listingId}": {
+      "schema": { "$ref": "#/entities/Listing" },
+      "description": "Marketplace listings collection"
+    },
+    "/recharge_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/RechargeRequest" },
+      "description": "User recharge and Top PRO boost payment verification requests"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User account profiles and management"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppSetting" },
+      "description": "Global application configuration and UPI/QR settings"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Marketplace categories"
+    },
+    "/locations/{locationId}": {
+      "schema": { "$ref": "#/entities/Location" },
+      "description": "All India states, districts and blocks"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "User transactions and plan validity logs"
+    },
+    "/banners/{bannerId}": {
+      "schema": { "$ref": "#/entities/Banner" },
+      "description": "Marketplace banners"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Notifications collection"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Public readable config / settings
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Categories
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    // Locations (States, Districts, Blocks)
+    match /locations/{locationId} {
+      allow read, write: if true;
+    }
+
+    // Banners
+    match /banners/{bannerId} {
+      allow read, write: if true;
+    }
+
+    // Marketplace Listings (Post, Pending, Active, Sold, Deleted)
+    match /listings/{listingId} {
+      allow read, write: if true;
+    }
+
+    // Recharge / Payment Requests (Top PRO & Monthly Plans)
+    match /recharge_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    // Users / Profiles
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Transactions
+    match /transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Deleted Listings Log (to synchronize deletions across all devices)
+    match /deleted_listings/{docId} {
+      allow read, write: if true;
+    }
+
+    // Test connection doc
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+
+    // Default fallback
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+
