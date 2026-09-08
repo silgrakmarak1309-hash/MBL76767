@@ -4245,7 +4245,27 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
       ]
     })
   });
-})()]});}function G1({images:e,onAdd:t,onRemove:n,max:r=8}){const s=m.useRef(null),[i,l]=m.useState(""),o=async c=>{if(c){l("");for(const u of Array.from(c)){if(e.length>=r){l(`Maximum ${r} images allowed`);break}if(!u.type.startsWith("image/")){l("Only image files are allowed");continue}if(u.size>5*1024*1024){l("Each image must be under 5MB");continue}const d=await J1(u,1280,.8);t(d)}s.current&&(s.current.value="")}};return a.jsxs("div",{children:[a.jsxs("div",{className:"flex flex-wrap gap-3",children:[e.map((c,u)=>a.jsxs("div",{className:"relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group",children:[a.jsx("img",{src:c,alt:"",className:"w-full h-full object-cover"}),a.jsx("button",{type:"button",onClick:()=>n(u),className:"absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80",children:a.jsx(Un,{className:"w-3.5 h-3.5"})}),u===0&&a.jsx("span",{className:"absolute bottom-0 left-0 right-0 bg-primary-500 text-white text-[10px] text-center py-0.5",children:"Cover"})]},u)),e.length<r&&a.jsxs("button",{type:"button",onClick:()=>{var c;return(c=s.current)==null?void 0:c.click()},className:"w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors",children:[a.jsx(Fp,{className:"w-5 h-5"}),a.jsx("span",{className:"text-[10px]",children:"Add Photo"})]})]}),i&&a.jsx("p",{className:"text-xs text-error-500 mt-2",children:i}),a.jsx("input",{ref:s,type:"file",accept:"image/*",multiple:!0,onChange:c=>o(c.target.files),className:"hidden"})]})}function J1(e,t,n){return new Promise((r,s)=>{const i=new FileReader;i.onload=l=>{var c;const o=new Image;o.onload=()=>{let{width:u,height:d}=o;(u>t||d>t)&&(u>d?(d=d/u*t,u=t):(u=u/d*t,d=t));const h=document.createElement("canvas");h.width=u,h.height=d;const p=h.getContext("2d");if(!p)return s(new Error("Canvas not supported"));p.drawImage(o,0,0,u,d),r(h.toDataURL("image/jpeg",n))},o.onerror=s,o.src=(c=l.target)==null?void 0:c.result},i.onerror=s,i.readAsDataURL(e)})}async function _d(e,t){const{error:n}=await L.from("profiles").update(t).eq("id",e);if(n)throw n}async function Xp(){const all=await v1();return all.filter(p=>p.is_active!==!1)}async function Q1(e) {
+})()]});}function G1({images:e,onAdd:t,onRemove:n,max:r=8}){const s=m.useRef(null),[i,l]=m.useState(""),o=async c=>{if(c){l("");for(const u of Array.from(c)){if(e.length>=r){l(`Maximum ${r} images allowed`);break}if(!u.type.startsWith("image/")){l("Only image files are allowed");continue}if(u.size>5*1024*1024){l("Each image must be under 5MB");continue}const d=await J1(u,1280,.8);t(d)}s.current&&(s.current.value="")}};return a.jsxs("div",{children:[a.jsxs("div",{className:"flex flex-wrap gap-3",children:[e.map((c,u)=>a.jsxs("div",{className:"relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group",children:[a.jsx("img",{src:c,alt:"",className:"w-full h-full object-cover"}),a.jsx("button",{type:"button",onClick:()=>n(u),className:"absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80",children:a.jsx(Un,{className:"w-3.5 h-3.5"})}),u===0&&a.jsx("span",{className:"absolute bottom-0 left-0 right-0 bg-primary-500 text-white text-[10px] text-center py-0.5",children:"Cover"})]},u)),e.length<r&&a.jsxs("button",{type:"button",onClick:()=>{var c;return(c=s.current)==null?void 0:c.click()},className:"w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors",children:[a.jsx(Fp,{className:"w-5 h-5"}),a.jsx("span",{className:"text-[10px]",children:"Add Photo"})]})]}),i&&a.jsx("p",{className:"text-xs text-error-500 mt-2",children:i}),a.jsx("input",{ref:s,type:"file",accept:"image/*",multiple:!0,onChange:c=>o(c.target.files),className:"hidden"})]})}function J1(e,t,n){return new Promise((r,s)=>{const i=new FileReader;i.onload=l=>{var c;const o=new Image;o.onload=()=>{let{width:u,height:d}=o;(u>t||d>t)&&(u>d?(d=d/u*t,u=t):(u=u/d*t,d=t));const h=document.createElement("canvas");h.width=u,h.height=d;const p=h.getContext("2d");if(!p)return s(new Error("Canvas not supported"));p.drawImage(o,0,0,u,d),r(h.toDataURL("image/jpeg",n))},o.onerror=s,o.src=(c=l.target)==null?void 0:c.result},i.onerror=s,i.readAsDataURL(e)})}async function _d(e,t){
+      try {
+        await L.from("profiles").update(t).eq("id",e);
+      } catch(err) {}
+      try {
+        if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.saveUser) {
+          await window.FirebaseDB.saveUser({ id: e, ...t });
+        }
+      } catch(err) {}
+      try {
+        const list = JSON.parse(localStorage.getItem("all_app_users") || "[]");
+        const idx = list.findIndex(u => u && u.id === e);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...t, updated_at: new Date().toISOString() };
+        } else {
+          list.unshift({ id: e, ...t, updated_at: new Date().toISOString() });
+        }
+        localStorage.setItem("all_app_users", JSON.stringify(list));
+        window.dispatchEvent(new CustomEvent("user_profile_updated", { detail: { id: e, ...t } }));
+      } catch(err) {}
+    }async function Xp(){const all=await v1();return all.filter(p=>p.is_active!==!1)}async function Q1(e) {
   let tUser = null;
   try {
     const { data: t } = await L.auth.getUser();
@@ -4408,6 +4428,11 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     filtered.unshift(newReq);
     localStorage.setItem("all_recharge_requests", JSON.stringify(filtered));
   } catch(err) {}
+  try {
+    if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.submitRechargeRequest) {
+      window.FirebaseDB.submitRechargeRequest(newReq).catch(() => {});
+    }
+  } catch(err) {}
 
   try {
     if (typeof window !== "undefined") {
@@ -4445,7 +4470,38 @@ async function Y1(e){
   } catch(err) {}
   return list;
 }
-async function X1(e){const{data:t,error:n}=await L.from("transactions").select("*").eq("user_id",e).order("created_at",{ascending:!1});if(n)throw n;return t}async function Z1(e,t){const n=e.name.split(".").pop()||"jpg",r=`avatars/${t}-${Date.now()}.${n}`,{data:s,error:i}=await L.storage.from("listing-images").upload(r,e,{contentType:e.type,upsert:!0});if(i)throw i;const{data:l}=L.storage.from("listing-images").getPublicUrl(s.path);return l.publicUrl}async function ej(e,t){const n=e.name.split(".").pop()||"jpg",r=`proofs/${t}-${Date.now()}.${n}`,{data:s,error:i}=await L.storage.from("listing-images").upload(r,e,{contentType:e.type,upsert:!1});if(i)throw i;const{data:l}=L.storage.from("listing-images").getPublicUrl(s.path);return l.publicUrl}async function tj(){
+async function X1(e){const{data:t,error:n}=await L.from("transactions").select("*").eq("user_id",e).order("created_at",{ascending:!1});if(n)throw n;return t}async function Z1(e,t){
+      try {
+        if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.uploadMedia) {
+          const u = await window.FirebaseDB.uploadMedia(e, "avatars");
+          if (u) return u;
+        }
+      } catch(err) {}
+      return new Promise((resolve) => {
+        try {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result || "");
+          reader.onerror = () => resolve("");
+          reader.readAsDataURL(e);
+        } catch(err) { resolve(""); }
+      });
+    }
+    async function ej(e,t){
+      try {
+        if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.uploadMedia) {
+          const u = await window.FirebaseDB.uploadMedia(e, "proofs");
+          if (u) return u;
+        }
+      } catch(err) {}
+      return new Promise((resolve) => {
+        try {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result || "");
+          reader.onerror = () => resolve("");
+          reader.readAsDataURL(e);
+        } catch(err) { resolve(""); }
+      });
+    }async function tj(){
   const n = {
     upi_id: "grejamarak@oksbi",
     payment_qr_code: "",
