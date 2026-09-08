@@ -338,9 +338,13 @@ class BazaarRepository(
     // -------------------------------------------------------------
     suspend fun syncWithFirebase(): Boolean = withContext(Dispatchers.IO) {
         try {
-            // 1. Sync Listings
+            // 1. Sync Listings strictly from remote backend as Single Source of Truth
             val remoteListings = firebaseService.fetchListings()
-            if (remoteListings.isNotEmpty()) {
+            if (remoteListings.isEmpty()) {
+                listingDao.clearAllListings()
+            } else {
+                val remoteIds = remoteListings.map { it.id }
+                listingDao.deleteListingsNotIn(remoteIds)
                 listingDao.insertListings(remoteListings)
             }
 
@@ -391,11 +395,6 @@ class BazaarRepository(
                 firebaseService.pushCategory(cat)
             }
 
-            val defaultListings = defaultListingsList()
-            for (list in defaultListings) {
-                firebaseService.pushListing(list)
-            }
-
             // Seed default admin settings
             firebaseService.saveSetting("upi_id", "grejamarak@oksbi")
             firebaseService.saveSetting("admob_app_id", "ca-app-pub-3940256099942544~3347511713")
@@ -435,69 +434,27 @@ class BazaarRepository(
         }
     }
 
-    fun defaultListingsList(): List<ListingEntity> {
-        return listOf(
-            ListingEntity(
-                id = "list_1",
-                title = "iPhone 13 128GB Midnight (100% Battery Health)",
-                categoryId = "cat_mobiles",
-                categoryName = "Mobile Phones",
-                locationId = "loc_guwahati",
-                locationName = "Paltan Bazaar, Guwahati",
-                stateName = "Assam",
-                price = 38500.0,
-                isNegotiable = true,
-                condition = "Like New",
-                description = "Apple iPhone 13 128GB Midnight Black with original box, bill, and fast charging cable. Never opened or repaired, pristine condition.",
-                phone = "9876543210",
-                whatsapp = "9876543210",
-                imagesJson = "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&auto=format&fit=crop&q=80",
-                status = "active",
-                isFeatured = true,
-                isPro = true,
-                sellerName = "Amit Sharma",
-                sellerVerified = true,
-                sellerPhone = "9876543210",
-                sellerJoined = "Oct 2023",
-                viewsCount = 540,
-                createdAt = System.currentTimeMillis() - 3600000 * 2
-            ),
-            ListingEntity(
-                id = "list_2",
-                title = "Royal Enfield Classic 350 Reborn (Dark Stealth Black)",
-                categoryId = "cat_vehicles",
-                categoryName = "Vehicles & Bikes",
-                locationId = "loc_shillong",
-                locationName = "Police Bazar, Shillong",
-                stateName = "Meghalaya",
-                price = 165000.0,
-                isNegotiable = true,
-                condition = "Like New",
-                description = "2023 Single Owner Royal Enfield Classic 350 Reborn. Driven only 6,500 kms with full showroom service records, alloy wheels, tubeless tyres.",
-                phone = "9436123456",
-                whatsapp = "9436123456",
-                imagesJson = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&auto=format&fit=crop&q=80",
-                status = "active",
-                isFeatured = true,
-                isPro = true,
-                sellerName = "Banteilang Marbaniang",
-                sellerVerified = true,
-                sellerPhone = "9436123456",
-                sellerJoined = "Dec 2023",
-                viewsCount = 320,
-                createdAt = System.currentTimeMillis() - 3600000 * 6
-            )
-        )
-    }
-
     suspend fun seedInitialDataIfEmpty() {
         if (locationDao.getLocationsCount() < 50) {
             locationDao.insertLocations(defaultLocationsList())
         }
-        if (listingDao.getListingsCount() > 0) return
-        categoryDao.insertCategories(defaultCategoriesList())
-        locationDao.insertLocations(defaultLocationsList())
-        listingDao.insertListings(defaultListingsList())
+        if (categoryDao.getCategoriesCount() == 0) {
+            categoryDao.insertCategories(defaultCategoriesList())
+        }
+
+        // Clean any stale local listings if present
+        try {
+            val remoteListings = withContext(Dispatchers.IO) { firebaseService.fetchListings() }
+            if (remoteListings.isEmpty()) {
+                listingDao.clearAllListings()
+            } else {
+                val remoteIds = remoteListings.map { it.id }
+                listingDao.deleteListingsNotIn(remoteIds)
+                listingDao.insertListings(remoteListings)
+            }
+        } catch (e: Exception) {
+            Log.w("BazaarRepository", "Initial fetchListings check: ${e.message}")
+        }
 
         // Default initial users
         val initialUsers = listOf(

@@ -153,17 +153,78 @@ function getDeviceFingerprint() {
   return devId;
 }
 
-async function checkDeviceLoginAllowedAsync(email) {
-  if (!email) return { allowed: false, message: "Please enter a valid email address." };
-  const cleanEmail = String(email).toLowerCase().trim();
+async function fetchBackendAccountLock(forceFresh = false) {
+  let backendLock = null;
+  try {
+    if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.getAccountLock) {
+      const fbLock = await window.FirebaseDB.getAccountLock(forceFresh);
+      if (fbLock && (fbLock.authorizedEmail || fbLock.authorizedUid)) {
+        backendLock = fbLock;
+      }
+    }
+  } catch(e) {}
+
+  try {
+    const syncState = await getCloudSyncState(forceFresh);
+    if (syncState && syncState.cloudConfig && syncState.cloudConfig.account_lock) {
+      const supLock = syncState.cloudConfig.account_lock;
+      if (supLock && (supLock.authorizedEmail || supLock.authorizedUid)) {
+        if (!backendLock) backendLock = supLock;
+      }
+    }
+  } catch(e) {}
+
+  if (!backendLock) {
+    try {
+      const local = localStorage.getItem("mlb_account_lock");
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed && (parsed.authorizedEmail || parsed.authorizedUid)) {
+          backendLock = parsed;
+        }
+      }
+    } catch(e) {}
+  }
+  return backendLock;
+}
+
+async function checkDeviceLoginAllowedAsync(email, uid) {
+  if (!email && !uid) return { allowed: false, message: "Please enter a valid email address." };
+  const cleanEmail = email ? String(email).toLowerCase().trim() : "";
   
-  if (isUserAdmin({ email: cleanEmail })) {
+  if (cleanEmail && isUserAdmin({ email: cleanEmail })) {
     return { allowed: true, isAdmin: true };
   }
-  
+
   const devId = getDeviceFingerprint();
+  const lock = await fetchBackendAccountLock(true);
+
+  if (lock && (lock.authorizedEmail || lock.authorizedUid)) {
+    const authEmail = (lock.authorizedEmail || "").toLowerCase().trim();
+    const authUid = lock.authorizedUid || "";
+
+    const emailMatches = cleanEmail && authEmail && (cleanEmail === authEmail);
+    const uidMatches = uid && authUid && (uid === authUid);
+
+    if (emailMatches || uidMatches) {
+      return {
+        allowed: true,
+        authorizedEmail: authEmail,
+        authorizedUid: authUid,
+        devId: devId
+      };
+    } else {
+      return {
+        allowed: false,
+        authorizedEmail: authEmail,
+        authorizedUid: authUid,
+        devId: devId,
+        message: "This app is already registered with another account. Please use the registered account."
+      };
+    }
+  }
+
   let boundEmail = "";
-  
   try {
     boundEmail = localStorage.getItem("mlb_bound_email_" + devId) || localStorage.getItem("mlb_bound_device_" + devId) || "";
     if (!boundEmail) {
@@ -172,31 +233,17 @@ async function checkDeviceLoginAllowedAsync(email) {
     }
     boundEmail = String(boundEmail).toLowerCase().trim();
   } catch(e) {}
-  
-  try {
-    const { data: cData } = await L.from("listings").select("description").eq("title", "[SYS_APP_CONFIG]").order("created_at", { ascending: false }).limit(1);
-    if (cData && cData[0] && cData[0].description) {
-      const cfg = JSON.parse(cData[0].description);
-      if (cfg && cfg.device_bindings && cfg.device_bindings[devId]) {
-        boundEmail = String(cfg.device_bindings[devId]).toLowerCase().trim();
-      }
-    }
-  } catch(e) {}
-  
-  if (boundEmail) {
-    if (boundEmail === cleanEmail) {
-      return { allowed: true, boundEmail: boundEmail, devId: devId };
-    } else {
-      return {
-        allowed: false,
-        boundEmail: boundEmail,
-        devId: devId,
-        message: "This device is already registered with another account (" + boundEmail + "). Only the registered Gmail/Email ID can be used on this device."
-      };
-    }
+
+  if (boundEmail && cleanEmail && boundEmail !== cleanEmail) {
+    return {
+      allowed: false,
+      authorizedEmail: boundEmail,
+      devId: devId,
+      message: "This app is already registered with another account. Please use the registered account."
+    };
   }
-  
-  return { allowed: true, isNewDevice: true, devId: devId };
+
+  return { allowed: true, isNewAccount: true, devId: devId };
 }
 
 function checkDeviceLoginAllowed(email) {
@@ -205,39 +252,63 @@ function checkDeviceLoginAllowed(email) {
   if (isUserAdmin({ email: cleanEmail })) {
     return { allowed: true, isAdmin: true };
   }
-  const devId = getDeviceFingerprint();
   let boundEmail = "";
   try {
-    boundEmail = localStorage.getItem("mlb_bound_email_" + devId) || localStorage.getItem("mlb_bound_device_" + devId) || "";
-    if (!boundEmail) {
-      const match = document.cookie.match(new RegExp("(?:^|; )mlb_bound_email_" + devId + "=([^;]*)"));
-      if (match) boundEmail = decodeURIComponent(match[1]);
-    }
-    boundEmail = String(boundEmail).toLowerCase().trim();
+    const lock = JSON.parse(localStorage.getItem("mlb_account_lock") || "null");
+    if (lock && lock.authorizedEmail) boundEmail = lock.authorizedEmail;
   } catch(e) {}
+  if (!boundEmail) {
+    const devId = getDeviceFingerprint();
+    try {
+      boundEmail = localStorage.getItem("mlb_bound_email_" + devId) || localStorage.getItem("mlb_bound_device_" + devId) || "";
+    } catch(e) {}
+  }
+  boundEmail = String(boundEmail).toLowerCase().trim();
   if (boundEmail && boundEmail !== cleanEmail) {
     return {
       allowed: false,
-      boundEmail: boundEmail,
-      devId: devId,
-      message: "This device is already registered with another account (" + boundEmail + "). Only the registered Gmail/Email ID can be used on this device."
+      authorizedEmail: boundEmail,
+      message: "This app is already registered with another account. Please use the registered account."
     };
   }
-  return { allowed: true, devId: devId };
+  return { allowed: true };
 }
 
-async function bindDeviceEmailAsync(email) {
-  if (!email) return;
-  const cleanEmail = String(email).toLowerCase().trim();
-  if (isUserAdmin({ email: cleanEmail })) return;
+async function bindDeviceEmailAsync(email, uid, provider = "password") {
+  if (!email && !uid) return;
+  const cleanEmail = email ? String(email).toLowerCase().trim() : "";
+  if (cleanEmail && isUserAdmin({ email: cleanEmail })) return;
+
   const devId = getDeviceFingerprint();
-  
+  const existingLock = await fetchBackendAccountLock(false);
+  if (existingLock && (existingLock.authorizedEmail || existingLock.authorizedUid)) {
+    return;
+  }
+
+  const lockPayload = {
+    authorizedUid: uid || "",
+    authorizedEmail: cleanEmail,
+    authorizedProvider: provider || (cleanEmail.includes("@gmail.com") ? "google" : "password"),
+    lockedAt: new Date().toISOString(),
+    isLocked: true
+  };
+
   try {
+    localStorage.setItem("mlb_account_lock", JSON.stringify(lockPayload));
     localStorage.setItem("mlb_bound_email_" + devId, cleanEmail);
     localStorage.setItem("mlb_bound_device_" + devId, cleanEmail);
     document.cookie = "mlb_bound_email_" + encodeURIComponent(devId) + "=" + encodeURIComponent(cleanEmail) + "; path=/; max-age=315360000; SameSite=Lax";
+    document.cookie = "mlb_account_lock=" + encodeURIComponent(JSON.stringify(lockPayload)) + "; path=/; max-age=315360000; SameSite=Lax";
   } catch(e) {}
-  
+
+  try {
+    if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.saveAccountLock) {
+      await window.FirebaseDB.saveAccountLock(lockPayload);
+    }
+  } catch(e) {
+    console.warn("Firebase saveAccountLock error:", e);
+  }
+
   try {
     let currentBindings = {};
     const { data: cData } = await L.from("listings").select("description").eq("title", "[SYS_APP_CONFIG]").order("created_at", { ascending: false }).limit(1);
@@ -245,17 +316,17 @@ async function bindDeviceEmailAsync(email) {
       const cfg = JSON.parse(cData[0].description);
       if (cfg && cfg.device_bindings) currentBindings = cfg.device_bindings;
     }
-    if (!currentBindings[devId] || currentBindings[devId] !== cleanEmail) {
-      currentBindings[devId] = cleanEmail;
-      await syncCloudConfig({ device_bindings: currentBindings });
-    }
-  } catch(e) {}
+    currentBindings[devId] = cleanEmail;
+    await syncCloudConfig({ account_lock: lockPayload, device_bindings: currentBindings });
+  } catch(e) {
+    console.warn("Supabase syncCloudConfig lock error:", e);
+  }
 }
 
 function bindDeviceEmail(email) {
   bindDeviceEmailAsync(email).catch(()=>{});
 }
-function bw({children:e}){  const[t,n]=m.useState(null),  [r,s]=m.useState(null),  [i,l]=m.useState(null),  [o,c]=m.useState(!0),  userRef=m.useRef(null),  u=m.useCallback(async w=>{    try {      let p_data=null;      try{const cached=localStorage.getItem("mlb_saved_profile_"+w);if(cached)p_data=JSON.parse(cached);}catch(e){}      try{        const{data:j,error:f}=await L.from("profiles").select("*").eq("id",w).maybeSingle();        if(!f&&j){p_data={...(p_data||{}),...j};}      }catch(err){}      try{        if(typeof window!=="undefined"&&window.FirebaseDB&&window.FirebaseDB.getUser){          const fbUser=await window.FirebaseDB.getUser(w);          if(fbUser){p_data={...(p_data||{}),...fbUser};}        }      }catch(fbErr){}      try{        const{data:u_auth}=await L.auth.getUser();        const u_email=u_auth?.user?.email;        const u_name=u_auth?.user?.user_metadata?.name||u_email?.split('@')[0]||'User';        const isAdminUser = isUserAdmin({email:u_email});        if(!p_data){          p_data={id:w,email:u_email,name:u_name,role:isAdminUser?'super_admin':'user',account_status:'active',status:'active',is_pro:isAdminUser,pro_status:isAdminUser?'active':'inactive',created_at:new Date().toISOString()};          try{await L.from('profiles').upsert(p_data)}catch(err){}        }else{          if(isAdminUser){            p_data={...p_data,role:'super_admin',is_pro:!0,pro_status:'active'};            try{await L.from('profiles').update({role:'super_admin',is_pro:!0,pro_status:'active'}).eq('id',w)}catch(err){}          }        }      }catch(e){}      if(p_data){        try {          const syncState = await getCloudSyncState();          const userOverrides = syncState.userStatusOverrides || {};          const cleanEmail = (p_data.email || "").trim().toLowerCase();          const uCloud = userOverrides[p_data.id] || (cleanEmail ? userOverrides[cleanEmail] : null);          if (uCloud) {            if (uCloud.account_status !== undefined) p_data.account_status = uCloud.account_status;            if (uCloud.status !== undefined) p_data.status = uCloud.status;            if (uCloud.is_pro !== undefined) p_data.is_pro = uCloud.is_pro;            if (uCloud.pro_status !== undefined) p_data.pro_status = uCloud.pro_status;            if (uCloud.pro_expires_at) p_data.pro_expires_at = uCloud.pro_expires_at;            if (uCloud.approved_expiry_date) p_data.approved_expiry_date = uCloud.approved_expiry_date;          }        } catch(err) {}        try {          const statusOverrides = JSON.parse(localStorage.getItem("admin_status_overrides") || "{}");          const sOverride = statusOverrides[p_data.id] || (p_data.email && (statusOverrides[p_data.email] || statusOverrides[p_data.email.toLowerCase().trim()]));          if (sOverride) {            const val = (typeof sOverride === "object" && sOverride.account_status) ? sOverride.account_status : sOverride;            if (typeof val === "string") {              p_data.account_status = val;              p_data.status = val;            }          }          const proOverrides = JSON.parse(localStorage.getItem("admin_pro_overrides") || "{}");          const pOverride = proOverrides[p_data.id] || (p_data.email && (proOverrides[p_data.email] || proOverrides[p_data.email.toLowerCase().trim()]));          if (pOverride) {            if (pOverride.is_pro !== undefined) p_data.is_pro = pOverride.is_pro;            if (pOverride.pro_status !== undefined) p_data.pro_status = pOverride.pro_status;            if (pOverride.pro_expires_at) p_data.pro_expires_at = pOverride.pro_expires_at;            if (pOverride.approved_expiry_date) p_data.approved_expiry_date = pOverride.approved_expiry_date;          }        } catch(err) {}        try{localStorage.setItem("mlb_saved_profile_"+w,JSON.stringify(p_data));}catch(err){}      }      l(p_data);    } catch(err) {      console.warn('Profile fetch failure:', err);    }  },[]),  d=m.useCallback(async()=>{const currentUser=userRef.current;currentUser&&await u(currentUser.id)},[u]);  m.useEffect(()=>{    let isMounted = true;    const safetyTimer = setTimeout(() => {      if (isMounted) c(false);    }, 1500);    try {      L.auth.getSession().then(({data:j})=>{        if (!isMounted) return;        var f,g;        s(j.session);        userRef.current=((f=j.session)==null?void 0:f.user)??null;        n(userRef.current);        if((g=j.session)!=null&&g.user){          u(j.session.user.id).catch(()=>{}).finally(()=>{ if(isMounted) c(false); });        } else {          if (isMounted) c(false);        }      }).catch(err => {        console.warn('getSession error:', err);        if (isMounted) c(false);      });    } catch(err) {      if (isMounted) c(false);    }    let unsub = null;    try {      const { data: w } = L.auth.onAuthStateChange((j,f)=>{        if (!isMounted) return;        s(f);        userRef.current=(f==null?void 0:f.user)??null;        n(userRef.current);        if(f!=null&&f.user){          u(f.user.id).catch(()=>{});        } else {          l(null);        }      });      unsub = w?.subscription?.unsubscribe;    } catch(err) {}    const handleProfileSync = () => {      const currentUser=userRef.current;      if (currentUser) u(currentUser.id).catch(()=>{});    };    window.addEventListener("user_profile_updated", handleProfileSync);    window.addEventListener("user_status_changed", handleProfileSync);    window.addEventListener("recharge_status_updated", handleProfileSync);    window.addEventListener("storage", handleProfileSync);    window.addEventListener("focus", handleProfileSync);    document.addEventListener("visibilitychange", handleProfileSync);    return () => {      isMounted = false;      clearTimeout(safetyTimer);      if(unsub) unsub();      window.removeEventListener("user_profile_updated", handleProfileSync);      window.removeEventListener("user_status_changed", handleProfileSync);      window.removeEventListener("recharge_status_updated", handleProfileSync);      window.removeEventListener("storage", handleProfileSync);      window.removeEventListener("focus", handleProfileSync);      document.removeEventListener("visibilitychange", handleProfileSync);    };  },[u]);  const h=async(w,j,f)=>{try{const{error:g}=await L.auth.signUp({email:w,password:j,options:{data:{name:f}}});return{error:(g==null?void 0:g.message)??null}}catch(e){return{error:e.message||'Sign up failed'}}},  p=async(w,j)=>{try{const{error:f}=await L.auth.signInWithPassword({email:w,password:j});return{error:(f==null?void 0:f.message)??null}}catch(e){return{error:e.message||'Sign in failed'}}},  v=async()=>{try{await L.auth.signOut()}catch(e){}l(null)},  x=async w=>{try{const{error:j}=await L.auth.resetPasswordForEmail(w);return{error:(j==null?void 0:j.message)??null}}catch(e){return{error:e.message||'Reset failed'}}};    m.useEffect(function() {    if (t && i) {      try { checkProExpiryNotifications(t, i); } catch(e) {}      const interval = setInterval(function() {        try { checkProExpiryNotifications(t, i); } catch(e) {}      }, 3600000);      return function() { clearInterval(interval); };    }  }, [t, i]);  return a.jsx(Tp.Provider,{value:{user:t,session:r,profile:i,loading:o,signUp:h,signIn:p,signOut:v,resetPassword:x,refreshProfile:d},children:e})}function Ae(){const e=m.useContext(Tp);if(!e)throw new Error("useAuth must be used within AuthProvider");return e}/**
+function bw({children:e}){  const[t,n]=m.useState(null),  [r,s]=m.useState(null),  [i,l]=m.useState(null),  [o,c]=m.useState(!0),  userRef=m.useRef(null),  u=m.useCallback(async w=>{    try {      let p_data=null;      try{const cached=localStorage.getItem("mlb_saved_profile_"+w);if(cached)p_data=JSON.parse(cached);}catch(e){}      try{        const{data:j,error:f}=await L.from("profiles").select("*").eq("id",w).maybeSingle();        if(!f&&j){p_data={...(p_data||{}),...j};}      }catch(err){}      try{        if(typeof window!=="undefined"&&window.FirebaseDB&&window.FirebaseDB.getUser){          const fbUser=await window.FirebaseDB.getUser(w);          if(fbUser){p_data={...(p_data||{}),...fbUser};}        }      }catch(fbErr){}      try{        const{data:u_auth}=await L.auth.getUser();        const u_email=u_auth?.user?.email;        const u_name=u_auth?.user?.user_metadata?.name||u_email?.split('@')[0]||'User';        const isAdminUser = isUserAdmin({email:u_email});        if(!p_data){          p_data={id:w,email:u_email,name:u_name,role:isAdminUser?'super_admin':'user',account_status:'active',status:'active',is_pro:isAdminUser,pro_status:isAdminUser?'active':'inactive',created_at:new Date().toISOString()};          try{await L.from('profiles').upsert(p_data)}catch(err){}        }else{          if(isAdminUser){            p_data={...p_data,role:'super_admin',is_pro:!0,pro_status:'active'};            try{await L.from('profiles').update({role:'super_admin',is_pro:!0,pro_status:'active'}).eq('id',w)}catch(err){}          }        }      }catch(e){}      if(p_data){        try {          const syncState = await getCloudSyncState();          const userOverrides = syncState.userStatusOverrides || {};          const cleanEmail = (p_data.email || "").trim().toLowerCase();          const uCloud = userOverrides[p_data.id] || (cleanEmail ? userOverrides[cleanEmail] : null);          if (uCloud) {            if (uCloud.account_status !== undefined) p_data.account_status = uCloud.account_status;            if (uCloud.status !== undefined) p_data.status = uCloud.status;            if (uCloud.is_pro !== undefined) p_data.is_pro = uCloud.is_pro;            if (uCloud.pro_status !== undefined) p_data.pro_status = uCloud.pro_status;            if (uCloud.pro_expires_at) p_data.pro_expires_at = uCloud.pro_expires_at;            if (uCloud.approved_expiry_date) p_data.approved_expiry_date = uCloud.approved_expiry_date;          }        } catch(err) {}        try {          const statusOverrides = JSON.parse(localStorage.getItem("admin_status_overrides") || "{}");          const sOverride = statusOverrides[p_data.id] || (p_data.email && (statusOverrides[p_data.email] || statusOverrides[p_data.email.toLowerCase().trim()]));          if (sOverride) {            const val = (typeof sOverride === "object" && sOverride.account_status) ? sOverride.account_status : sOverride;            if (typeof val === "string") {              p_data.account_status = val;              p_data.status = val;            }          }          const proOverrides = JSON.parse(localStorage.getItem("admin_pro_overrides") || "{}");          const pOverride = proOverrides[p_data.id] || (p_data.email && (proOverrides[p_data.email] || proOverrides[p_data.email.toLowerCase().trim()]));          if (pOverride) {            if (pOverride.is_pro !== undefined) p_data.is_pro = pOverride.is_pro;            if (pOverride.pro_status !== undefined) p_data.pro_status = pOverride.pro_status;            if (pOverride.pro_expires_at) p_data.pro_expires_at = pOverride.pro_expires_at;            if (pOverride.approved_expiry_date) p_data.approved_expiry_date = pOverride.approved_expiry_date;          }        } catch(err) {}        try{localStorage.setItem("mlb_saved_profile_"+w,JSON.stringify(p_data));}catch(err){}      }      l(p_data);    } catch(err) {      console.warn('Profile fetch failure:', err);    }  },[]),  d=m.useCallback(async()=>{const currentUser=userRef.current;currentUser&&await u(currentUser.id)},[u]);  m.useEffect(()=>{    let isMounted = true;    const safetyTimer = setTimeout(() => {      if (isMounted) c(false);    }, 1500);    try {      L.auth.getSession().then(async ({data:j})=>{        if (!isMounted) return;        var f,g;        const sessionUser = ((f=j.session)==null?void 0:f.user)??null;        if (sessionUser && sessionUser.email && !isUserAdmin({ email: sessionUser.email })) {          const chk = await checkDeviceLoginAllowedAsync(sessionUser.email, sessionUser.id);          if (!chk.allowed) {            try { await L.auth.signOut(); } catch(e) {}            userRef.current = null;            n(null);            s(null);            l(null);            if (isMounted) c(false);            return;          }        }        s(j.session);        userRef.current=sessionUser;        n(userRef.current);        if((g=j.session)!=null&&g.user){          u(j.session.user.id).catch(()=>{}).finally(()=>{ if(isMounted) c(false); });        } else {          if (isMounted) c(false);        }      }).catch(err => {        console.warn('getSession error:', err);        if (isMounted) c(false);      });    } catch(err) {      if (isMounted) c(false);    }    let unsub = null;    try {      const { data: w } = L.auth.onAuthStateChange(async (j,f)=>{        if (!isMounted) return;        const authUser = (f==null?void 0:f.user)??null;        if (authUser && authUser.email && !isUserAdmin({ email: authUser.email })) {          const chk = await checkDeviceLoginAllowedAsync(authUser.email, authUser.id);          if (!chk.allowed) {            try { await L.auth.signOut(); } catch(e) {}            userRef.current = null;            n(null);            s(null);            l(null);            return;          }        }        s(f);        userRef.current=authUser;        n(userRef.current);        if(f!=null&&f.user){          u(f.user.id).catch(()=>{});        } else {          l(null);        }      });      unsub = w?.subscription?.unsubscribe;    } catch(err) {}    const handleProfileSync = () => {      const currentUser=userRef.current;      if (currentUser) u(currentUser.id).catch(()=>{});    };    window.addEventListener("user_profile_updated", handleProfileSync);    window.addEventListener("user_status_changed", handleProfileSync);    window.addEventListener("recharge_status_updated", handleProfileSync);    window.addEventListener("storage", handleProfileSync);    window.addEventListener("focus", handleProfileSync);    document.addEventListener("visibilitychange", handleProfileSync);    return () => {      isMounted = false;      clearTimeout(safetyTimer);      if(unsub) unsub();      window.removeEventListener("user_profile_updated", handleProfileSync);      window.removeEventListener("user_status_changed", handleProfileSync);      window.removeEventListener("recharge_status_updated", handleProfileSync);      window.removeEventListener("storage", handleProfileSync);      window.removeEventListener("focus", handleProfileSync);      document.removeEventListener("visibilitychange", handleProfileSync);    };  },[u]);  const h=async(w,j,f)=>{try{const devCheck = await checkDeviceLoginAllowedAsync(w); if(!devCheck.allowed){ return { error: devCheck.message || "This app is already registered with another account. Please use the registered account." }; } const{data:resData,error:g}=await L.auth.signUp({email:w,password:j,options:{data:{name:f}}});if(g) return {error:(g==null?void 0:g.message)??null}; if(!isUserAdmin({email:w})){ await bindDeviceEmailAsync(w, resData?.user?.id, "password"); } return {error:null, data:resData}}catch(e){return{error:e.message||'Sign up failed'}}},  p=async(w,j)=>{try{const devCheck = await checkDeviceLoginAllowedAsync(w); if(!devCheck.allowed){ return { error: devCheck.message || "This app is already registered with another account. Please use the registered account." }; } const{data:resData,error:f}=await L.auth.signInWithPassword({email:w,password:j});if(f) return {error:(f==null?void 0:f.message)??null}; const checkAfter = await checkDeviceLoginAllowedAsync(resData?.user?.email || w, resData?.user?.id); if(!checkAfter.allowed){ try{ await L.auth.signOut(); }catch(e){} return { error: checkAfter.message || "This app is already registered with another account. Please use the registered account." }; } if(!isUserAdmin({email:w})){ await bindDeviceEmailAsync(w, resData?.user?.id, "password"); } return {error:null, data:resData}}catch(e){return{error:e.message||'Sign in failed'}}},  v=async()=>{try{await L.auth.signOut()}catch(e){}l(null)},  x=async w=>{try{const{error:j}=await L.auth.resetPasswordForEmail(w);return{error:(j==null?void 0:j.message)??null}}catch(e){return{error:e.message||'Reset failed'}}};    m.useEffect(function() {    if (t && i) {      try { checkProExpiryNotifications(t, i); } catch(e) {}      const interval = setInterval(function() {        try { checkProExpiryNotifications(t, i); } catch(e) {}      }, 3600000);      return function() { clearInterval(interval); };    }  }, [t, i]);  return a.jsx(Tp.Provider,{value:{user:t,session:r,profile:i,loading:o,signUp:h,signIn:p,signOut:v,resetPassword:x,refreshProfile:d},children:e})}function Ae(){const e=m.useContext(Tp);if(!e)throw new Error("useAuth must be used within AuthProvider");return e}/**
  * @license lucide-react v0.446.0 - ISC
  *
  * This source code is licensed under the ISC license.
@@ -1038,12 +1109,80 @@ async function saveCloudSyncRecord(title, payload) {
   }
 }
 
+const KNOWN_TEST_LISTING_IDS = [
+  "eaf2bb5f-ffb3-4401-9924-2b6768ffa0a4",
+  "3b335f0b-4b2a-4c09-8aba-80a3bde07557",
+  "39dd9660-4705-49d1-b4f1-28f61c036fae",
+  "9a7d0be9-291b-42c8-9bd9-3112226de8d3",
+  "f87c737b-b6ff-4b9b-b3e5-af8f771a7e2b",
+  "5d2984bf-05ef-4bce-99f6-b8959fc697f8",
+  "0acd0484-6f9b-4e96-9414-b6a566fe0f19",
+  "sample_listing_1",
+  "sample_listing_2",
+  "sample_listing_3",
+  "sample_listing_4",
+  "sample_listing_5",
+  "sample_listing_6",
+  "list_1",
+  "list_2"
+];
+
+function isTestListing(item) {
+  if (!item) return true;
+  const id = item.id || item.listing_id;
+  if (id && (KNOWN_TEST_LISTING_IDS.includes(id) || String(id).startsWith("sample_listing_") || String(id).startsWith("list_1") || String(id).startsWith("list_2"))) return true;
+  const title = String(item.title || "").toLowerCase().trim();
+  if (title === "testing" || title === "test" || title === "try" || title === "abcd...." || title === "abcdfghhbd" || title === "test ad multi-mobile sync") return true;
+  if (title.startsWith("test ad") || title.startsWith("[test") || title.startsWith("testing ") || title === "abcd" || title.startsWith("abcd.")) return true;
+  if (title.includes("maruti suzuki swift") || title.includes("iphone 13 pro 128gb") || title.includes("shillong to guwahati airport") || title.includes("solid teak wood") || title.includes("2 bhk independent floor") || title.includes("dell xps 13") || title.includes("royal enfield classic 350")) return true;
+  return false;
+}
+
+let _hasPurgedTestListings = false;
+async function purgeOldTestListings() {
+  if (_hasPurgedTestListings) return;
+  _hasPurgedTestListings = true;
+  try {
+    const delList = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]");
+    let changed = false;
+    KNOWN_TEST_LISTING_IDS.forEach(id => {
+      if (!delList.includes(id)) {
+        delList.push(id);
+        changed = true;
+      }
+    });
+    if (changed) {
+      localStorage.setItem("deleted_listing_ids", JSON.stringify(delList));
+    }
+  } catch(e) {}
+  try {
+    const storageKeys = ["user_custom_listings", "admin_listings", "admin_custom_listings"];
+    storageKeys.forEach(key => {
+      const saved = JSON.parse(localStorage.getItem(key) || "[]");
+      if (Array.isArray(saved)) {
+        const filtered = saved.filter(l => l && !isTestListing(l));
+        if (filtered.length !== saved.length) {
+          localStorage.setItem(key, JSON.stringify(filtered));
+        }
+      }
+    });
+  } catch(e) {}
+  try {
+    await saveCloudSyncRecord("[SYS_DELETED_LISTING]", {
+      deleted_listing_ids: KNOWN_TEST_LISTING_IDS,
+      deleted_at: new Date().toISOString()
+    });
+  } catch(e) {}
+}
+
+try { purgeOldTestListings(); } catch(e) {}
+
 async function getCloudSyncState(forceFresh = false) {
   const now = Date.now();
   if (!forceFresh && _cachedCloudSync && (now - _lastCloudSyncFetchTime < CLOUD_SYNC_CACHE_TTL)) {
     return _cachedCloudSync;
   }
-  let deletedListingIds = [];
+  let deletedListingIds = [...KNOWN_TEST_LISTING_IDS];
   let listingStatusOverrides = {};
   let userStatusOverrides = {};
   let rechargeStatusOverrides = {};
@@ -1052,7 +1191,12 @@ async function getCloudSyncState(forceFresh = false) {
   let rechargeRequests = [];
   let topProRequests = [];
 
-  try { deletedListingIds = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]"); } catch(e) {}
+  try {
+    const localDels = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]");
+    localDels.forEach(dId => {
+      if (dId && !deletedListingIds.includes(dId)) deletedListingIds.push(dId);
+    });
+  } catch(e) {}
   try { listingStatusOverrides = JSON.parse(localStorage.getItem("listing_status_overrides") || "{}"); } catch(e) {}
   try { userStatusOverrides = JSON.parse(localStorage.getItem("admin_status_overrides") || "{}"); } catch(e) {}
   try { rechargeStatusOverrides = JSON.parse(localStorage.getItem("recharge_status_overrides") || "{}"); } catch(e) {}
@@ -1178,6 +1322,7 @@ async function getCloudSyncState(forceFresh = false) {
   _lastCloudSyncFetchTime = Date.now();
   return _cachedCloudSync;
 }async function Vp(e = {}) {
+  try { purgeOldTestListings(); } catch(err) {}
   let list = [];
   try {
     list = await fetchAllListings();
@@ -1193,6 +1338,7 @@ async function getCloudSyncState(forceFresh = false) {
   // Authoritative status filter: active/published listings only
   let filteredRes = list.filter(function(item) {
     if (!item || !item.id) return false;
+    if (isTestListing(item)) return false;
     const titleStr = String(item.title || "");
     if (titleStr.startsWith("[SYS_") || titleStr.startsWith("SYS_") || titleStr === "[SYS_APP_CONFIG]") return false;
     if (deletedIds.includes(item.id)) return false;
@@ -1725,478 +1871,15 @@ async function c1(e){
     }
     created = Object.assign({ id: getUuid() }, newListing, { location: locObj, location_name: locStr, user_email: uEmail, user_name: uName, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), views_count: 0 });
   }
-  try {
-    const saved = JSON.parse(localStorage.getItem("user_custom_listings") || "[]");
-    saved.unshift(created);
-    localStorage.setItem("user_custom_listings", JSON.stringify(saved));
-  } catch(err) {}
-  try {
-    const overrides = JSON.parse(localStorage.getItem("listing_status_overrides") || "{}");
-    overrides[created.id] = { status: "pending", is_featured: !!created.is_featured };
-    localStorage.setItem("listing_status_overrides", JSON.stringify(overrides));
-  } catch(err) {}
-  try {
-    const adminNotif = {
-      id: "notif_listing_" + (created.id || Date.now()),
-      listing_id: created.id || "",
-      listing_title: created.title || e.title || "Post Listing Request",
-      user_email: uEmail,
-      user_name: uName,
-      user_phone: created.phone || created.whatsapp || "",
-      user_id: "admin",
-      title: "📋 New Post Listing Request Submitted",
-      message: "User " + (uEmail || uName) + " has submitted a new ad: \"" + (e.title || "Untitled") + "\". Awaiting admin approval to publish.",
-      type: "post_request",
-      read: false,
-      created_at: new Date().toISOString()
-    };
-    const allNotifs = JSON.parse(localStorage.getItem("admin_notifications") || "[]");
-    allNotifs.unshift(adminNotif);
-    localStorage.setItem("admin_notifications", JSON.stringify(allNotifs));
-  } catch(err) {}
-  try {
-    await saveCloudSyncRecord("[SYS_POST_LISTING_REQUEST]", {
-      listing_id: created.id,
-      listing: created,
-      created_at: created.created_at || new Date().toISOString()
-    });
-  } catch(err) {}
-  try {
-    if (typeof window !== "undefined") {
-      invalidateAdminListingsCache();
-      if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.saveListing) {
-          try { window.FirebaseDB.saveListing(created); } catch(err) { console.warn("[Firebase] Error saving listing:", err); }
-        }
-        window.dispatchEvent(new CustomEvent("listing_created", { detail: created }));
-      window.dispatchEvent(new CustomEvent("listing_status_updated", { detail: { id: created.id, status: "pending" } }));
-      window.dispatchEvent(new Event("storage"));
-    }
-  } catch(err) {}
-  return created;
-}
-async function u1(e){  try {    const delList = JSON.parse(localStorage.getItem("deleted_listing_ids") || "[]");    if (!delList.includes(e)) {      delList.push(e);      localStorage.setItem("deleted_listing_ids", JSON.stringify(delList));    }  } catch(err) {}  try {    const saved = JSON.parse(localStorage.getItem("user_custom_listings") || "[]");    const filtered = saved.filter(l => l && l.id !== e);    localStorage.setItem("user_custom_listings", JSON.stringify(filtered));  } catch(err) {}  try { await L.from("listings").delete().eq("id", e); } catch(err) {}  try { await L.from("listings").update({status: "deleted"}).eq("id", e); } catch(err) {}  try {    let tUser = null;    try { const { data: t } = await L.auth.getUser(); if (t && t.user) tUser = t.user; } catch(err) {}    const isUUID = str => typeof str === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);    const syncUid = (tUser?.id && isUUID(tUser.id)) ? tUser.id : "54d69b2e-76f7-410d-84fc-af00f7101786";    await L.from("listings").insert({      user_id: syncUid,      title: "[SYS_DELETED_LISTING]",      category_id: "3ed03846-ea53-4f52-9db5-17550b75f3f2",      location_id: "02ef9e15-c49f-459e-916c-2432e90dd230",      price: 0,      condition: "new",      description: JSON.stringify({ deleted_id: e, deleted_at: new Date().toISOString() }),      phone: "9876543210",      whatsapp: "9876543210",      images: [],      status: "active",      is_featured: false    });  } catch(err) {}  if (typeof window !== "undefined") {    window.dispatchEvent(new CustomEvent("listing_deleted", { detail: { id: e } }));    window.dispatchEvent(new Event("storage"));  }}async function d1(e){  try {    const overrides = JSON.parse(localStorage.getItem("listing_status_overrides") || "{}");    overrides[e] = { ...(overrides[e] || {}), status: "sold" };    localStorage.setItem("listing_status_overrides", JSON.stringify(overrides));  } catch(err) {}  try {    const saved = JSON.parse(localStorage.getItem("user_custom_listings") || "[]");    saved.forEach(l => { if (l && l.id === e) l.status = "sold"; });    localStorage.setItem("user_custom_listings", JSON.stringify(saved));  } catch(err) {}  try { await L.from("listings").update({status: "sold"}).eq("id", e); } catch(err) {}}async function h1(e){  try {    const overrides = JSON.parse(localStorage.getItem("listing_status_overrides") || "{}");    overrides[e] = { ...(overrides[e] || {}), status: "active" };    localStorage.setItem("listing_status_overrides", JSON.stringify(overrides));  } catch(err) {}  try {    const saved = JSON.parse(localStorage.getItem("user_custom_listings") || "[]");    saved.forEach(l => { if (l && l.id === e) l.status = "active"; });    localStorage.setItem("user_custom_listings", JSON.stringify(saved));  } catch(err) {}  try { await L.from("listings").update({status: "active"}).eq("id", e); } catch(err) {}}async function Kp(e,t){
-      if (!e) return "";
-      if (typeof e === "string" && !e.startsWith("data:")) return e;
-      try {
-        const n = `${t || "listings"}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-        const { data: r, error: s } = await L.storage.from("listing-images").upload(n, f1(e), { contentType: "image/jpeg", upsert: !0 });
-        if (!s && r && r.path) {
-          const { data: i } = L.storage.from("listing-images").getPublicUrl(r.path);
-          if (i && i.publicUrl) return i.publicUrl;
-        }
-      } catch(err) {
-        console.warn("[Supabase Storage upload via client]:", err);
-      }
-      if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.uploadMedia) {
-        try {
-          const sbUrl = await window.FirebaseDB.uploadMedia(e, t || "listings");
-          if (sbUrl && !sbUrl.startsWith("data:")) return sbUrl;
-        } catch(sbErr) {
-          console.warn("[FirebaseDB Supabase Media Upload]:", sbErr);
-        }
-      }
-      return e;
-    }function f1(e){var l;const[t,n]=e.split(","),r=((l=t.match(/:(.*?);/))==null?void 0:l[1])||"image/jpeg",s=atob(n),i=new Uint8Array(s.length);for(let o=0;o<s.length;o++)i[o]=s.charCodeAt(o);return new Blob([i],{type:r})}async function Ic(){
-  let list = [];
-  try {
-    const _profRes = await withTimeout(
-      L.from("profiles").select("*").order("created_at", { ascending: false }),
-      1800,
-      { data: [], error: null }
-    );
-    const e = _profRes && _profRes.data;
-    const t = _profRes && _profRes.error;
-    if (!t && e && Array.isArray(e) && e.length > 0) list = e;
-  } catch(err) {}
-
-  if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.getUsers) {
-    try {
-      const fbUsers = await window.FirebaseDB.getUsers(true);
-      if (Array.isArray(fbUsers) && fbUsers.length > 0) {
-        list = [...list, ...fbUsers];
-      }
-    } catch(fbErr) {}
-  }
-  
-  let syncState = { userStatusOverrides: {} };
-  try { syncState = await getCloudSyncState(); } catch(err) {}
-  const cloudUserOverrides = syncState.userStatusOverrides || {};
-
-  const defaultUsers = [
-    {
-      id: "5d813f5a-506e-424b-950f-477425d42d06",
-      name: "Silgrak Marak",
-      email: "silgrak1309@gmail.com",
-      phone: "9366304567",
-      whatsapp: "9366304567",
-      city: "Rongara, South Garo Hills",
-      role: "super_admin",
-      is_admin: true,
-      is_pro: true,
-      pro_status: "active",
-      account_status: "active",
-      created_at: "2026-08-20T00:00:00.000Z"
-    },
-    {
-      id: "user_sengmi_12",
-      name: "Sengmi Marak",
-      email: "sengmimarak12@gmail.com",
-      phone: "6009092096",
-      whatsapp: "6009092096",
-      city: "Tura, West Garo Hills",
-      role: "super_admin",
-      is_admin: true,
-      is_pro: true,
-      pro_status: "active",
-      account_status: "active",
-      created_at: "2026-08-21T00:00:00.000Z"
-    },
-    {
-      id: "user_marakmy01",
-      name: "marakmy01",
-      email: "marakmy01@gmail.com",
-      phone: "9863112233",
-      whatsapp: "9863112233",
-      city: "Williamnagar",
-      role: "user",
-      is_pro: true,
-      pro_status: "active",
-      account_status: "active",
-      created_at: "2026-08-25T04:43:00.000Z"
-    },
-    {
-      id: "3a39c052-ff25-4bf1-9531-5b2428f39416",
-      name: "Local Electronics Seller",
-      email: "electronics_repair@gmail.com",
-      phone: "9856012345",
-      whatsapp: "9856012345",
-      city: "Tura, Meghalaya",
-      role: "seller",
-      is_pro: false,
-      pro_status: "inactive",
-      account_status: "active",
-      created_at: "2026-08-27T11:53:00.000Z"
-    },
-    {
-      id: "93754ba4-d171-44a3-b6f5-1166fd9c718e",
-      name: "Abcdj Merchant",
-      email: "abcdj_store@gmail.com",
-      phone: "9436123456",
-      whatsapp: "9436123456",
-      city: "Shillong, Meghalaya",
-      role: "user",
-      is_pro: false,
-      pro_status: "inactive",
-      account_status: "active",
-      created_at: "2026-08-27T12:02:00.000Z"
-    }
-  ];
-  const emailMap = new Map();
-  const idMap = new Map();
-  const mergeUser = (existing, u) => {
-    if (!existing) return { ...u };
-    return {
-      ...existing,
-      ...u,
-      id: existing.id || u.id,
-      name: u.name || existing.name || "User",
-      email: (u.email || existing.email || "").trim().toLowerCase(),
-      phone: u.phone || existing.phone || "",
-      whatsapp: u.whatsapp || u.phone || existing.whatsapp || existing.phone || "",
-      role: u.role || existing.role || "user",
-      is_pro: u.is_pro !== undefined ? u.is_pro : existing.is_pro,
-      pro_status: u.pro_status || existing.pro_status || (u.is_pro ? "active" : "inactive"),
-      account_status: u.account_status || existing.account_status || "active"
-    };
-  };
-  defaultUsers.forEach(u => {
-    if (!u) return;
-    const cleanEmail = (u.email || "").trim().toLowerCase();
-    if (cleanEmail) emailMap.set(cleanEmail, { ...u });
-    else if (u.id) idMap.set(u.id, { ...u });
-  });
-  list.forEach(u => {
-    if (!u) return;
-    const cleanEmail = (u.email || "").trim().toLowerCase();
-    if (cleanEmail && emailMap.has(cleanEmail)) {
-      emailMap.set(cleanEmail, mergeUser(emailMap.get(cleanEmail), u));
-    } else if (u.id && idMap.has(u.id)) {
-      idMap.set(u.id, mergeUser(idMap.get(u.id), u));
-    } else {
-      if (cleanEmail) emailMap.set(cleanEmail, { ...u });
-      else if (u.id) idMap.set(u.id, { ...u });
-    }
-  });
-
-  try {
-    const saved = JSON.parse(localStorage.getItem("admin_users") || "[]");
-    if (Array.isArray(saved)) {
-      saved.forEach(u => {
-        if (!u) return;
-        const cleanEmail = (u.email || "").trim().toLowerCase();
-        if (cleanEmail && emailMap.has(cleanEmail)) {
-          emailMap.set(cleanEmail, mergeUser(emailMap.get(cleanEmail), u));
-        } else if (u.id && idMap.has(u.id)) {
-          idMap.set(u.id, mergeUser(idMap.get(u.id), u));
-        } else {
-          if (cleanEmail) emailMap.set(cleanEmail, { ...u });
-          else if (u.id) idMap.set(u.id, { ...u });
-        }
-      });
-    }
-  } catch(err) {}
-
-  const merged = Array.from(new Set([...emailMap.values(), ...idMap.values()]));
-  return merged.map(u => {
-    const cleanEmail = (u.email || "").trim().toLowerCase();
-    const uCloud = (u.id && cloudUserOverrides[u.id]) || (cleanEmail && cloudUserOverrides[cleanEmail]);
-    if (uCloud) {
-      return {
-        ...u,
-        account_status: uCloud.account_status !== undefined ? uCloud.account_status : u.account_status,
-        status: uCloud.status !== undefined ? uCloud.status : u.status,
-        is_pro: uCloud.is_pro !== undefined ? uCloud.is_pro : u.is_pro,
-        pro_status: uCloud.pro_status !== undefined ? uCloud.pro_status : u.pro_status,
-        pro_expires_at: uCloud.pro_expires_at || u.pro_expires_at,
-        approved_expiry_date: uCloud.approved_expiry_date || u.approved_expiry_date
-      };
-    }
-    return u;
-  });
-}
-
-async function fetchAllListings(){
-  let list = [];
-  let syncState = { deletedListingIds: [], listingStatusOverrides: {}, postListingRequests: [] };
-  try { syncState = await getCloudSyncState(); } catch(err) {}
-  const deletedIds = syncState.deletedListingIds || [];
-  const overrides = syncState.listingStatusOverrides || {};
-  const postReqs = syncState.postListingRequests || [];
-  
-  try {
-    const _fallRes = await withTimeout(
-      L.from("listings")
-        .select("*, category:categories(*), location:locations(*)")
-        .not("title", "like", "[SYS_%")
-        .not("title", "like", "SYS_%")
-        .order("created_at", { ascending: false }),
-      1500,
-      { data: [], error: null }
-    );
-    const e = _fallRes && _fallRes.data;
-    const t = _fallRes && _fallRes.error;
-    if (!t && e && e.length > 0) list = e;
-  } catch(err) {}
-  
+  // Pure single source of truth from backend - No mock/sample fallback
   if (!list || list.length === 0) {
-    try {
-      const _fallRes2 = await withTimeout(
-        L.from("listings")
-          .select("*")
-          .not("title", "like", "[SYS_%")
-          .not("title", "like", "SYS_%")
-          .order("created_at", { ascending: false }),
-        1200,
-        { data: [] }
-      );
-      const e2 = _fallRes2 && _fallRes2.data;
-      if (e2 && e2.length > 0) list = e2;
-    } catch(err2) {}
-  }
-
-  if (typeof window !== "undefined" && window.FirebaseDB && window.FirebaseDB.getListings) {
-    try {
-      const fbListings = await window.FirebaseDB.getListings();
-      if (fbListings && fbListings.length > 0) {
-        fbListings.forEach(function(fbItem) {
-          if (!fbItem || !fbItem.id) return;
-          const exIdx = list.findIndex(function(it) { return it && it.id === fbItem.id; });
-          if (exIdx >= 0) {
-            list[exIdx] = Object.assign({}, list[exIdx], fbItem);
-          } else {
-            list.unshift(fbItem);
-          }
-        });
-      }
-    } catch(err) {}
-  }
-  if (postReqs && postReqs.length > 0) {
-    postReqs.forEach(function(req) {
-      if (!req || !req.id) return;
-      const existingIdx = list.findIndex(function(item) { return item.id === req.id; });
-      if (existingIdx >= 0) {
-        list[existingIdx] = {
-          ...req,
-          ...list[existingIdx],
-          images: (Array.isArray(list[existingIdx].images) && list[existingIdx].images.length > 0) ? list[existingIdx].images : (req.images || []),
-          location: list[existingIdx].location || req.location || { name: list[existingIdx].location_name || req.location_name || "Meghalaya" },
-          location_name: list[existingIdx].location_name || req.location_name || (typeof req.location === "object" ? req.location?.name : req.location) || "Meghalaya",
-          phone: list[existingIdx].phone || req.phone || "",
-          whatsapp: list[existingIdx].whatsapp || req.whatsapp || "",
-          user_email: list[existingIdx].user_email || req.user_email || "",
-          user_name: list[existingIdx].user_name || req.user_name || "User"
-        };
-      } else {
-        list.push({
-          ...req,
-          status: req.status || "pending",
-          created_at: req.created_at || new Date().toISOString()
-        });
-      }
-    });
-  }
-
-  try {
-    const saved = JSON.parse(localStorage.getItem("user_custom_listings") || "[]");
-    if (saved && saved.length > 0) {
-      saved.forEach(function(sItem) {
-        if (sItem && sItem.id && !list.some(function(item) { return item.id === sItem.id; })) {
-          list.push(sItem);
-        }
-      });
-    }
-  } catch(err) {}
-
-  try {
-    const adminListings = JSON.parse(localStorage.getItem("admin_listings") || "[]");
-    if (adminListings && adminListings.length > 0) {
-      adminListings.forEach(function(aItem) {
-        if (aItem && aItem.id && !list.some(function(item) { return item.id === aItem.id; })) {
-          list.push(aItem);
-        }
-      });
-    }
-  } catch(err) {}
-
-  // Standard marketplace default listings when DB is freshly initialized
-  if (!list || list.length === 0) {
-    list = [
-      {
-        id: "sample_listing_1",
-        title: "Maruti Suzuki Swift VXI (2021) - Single Owner",
-        description: "Maruti Suzuki Swift 2021 model in excellent running condition. Low mileage, full service history available at authorized center.",
-        price: 485000,
-        category_id: "cat_3",
-        category: { id: "cat_3", name: "Vehicles", icon: "🚗 Vehicles" },
-        location_id: "loc_shillong",
-        location: { id: "loc_shillong", name: "East Khasi Hills (Shillong)" },
-        location_name: "East Khasi Hills (Shillong)",
-        images: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80"],
-        status: "active",
-        is_featured: true,
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        user_name: "Rohan Sangma",
-        user_email: "rohan.sangma@example.com",
-        phone: "9863012345",
-        whatsapp: "9863012345",
-        seller: { id: "seller_1", name: "Rohan Sangma", phone: "9863012345", whatsapp: "9863012345", email: "rohan.sangma@example.com" }
-      },
-      {
-        id: "sample_listing_2",
-        title: "iPhone 13 Pro 128GB Sierra Blue (With Box & Bill)",
-        description: "iPhone 13 Pro 128GB Sierra Blue. 89% Battery health, pristine condition, tempered glass applied from day one. Original box and cable included.",
-        price: 49999,
-        category_id: "cat_1",
-        category: { id: "cat_1", name: "Mobile Phones", icon: "📱 Mobile Phones" },
-        location_id: "loc_tura",
-        location: { id: "loc_tura", name: "West Garo Hills (Tura)" },
-        location_name: "West Garo Hills (Tura)",
-        images: ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
-        status: "active",
-        is_featured: true,
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        user_name: "Daphne Marak",
-        user_email: "daphne.marak@example.com",
-        phone: "9436156789",
-        whatsapp: "9436156789",
-        seller: { id: "seller_2", name: "Daphne Marak", phone: "9436156789", whatsapp: "9436156789", email: "daphne.marak@example.com" }
-      },
-      {
-        id: "sample_listing_3",
-        title: "Shillong to Guwahati Airport / City Cab Service",
-        description: "Daily reliable private and shared cab service from Shillong to Guwahati Airport & Railway Station. Clean AC commercial vehicle, experienced driver.",
-        price: 2200,
-        category_id: "cat_taxi",
-        category: { id: "cat_taxi", name: "Local Cab / Taxi", icon: "🚕 Local Cab / Taxi" },
-        location_id: "loc_shillong",
-        location: { id: "loc_shillong", name: "East Khasi Hills (Shillong)" },
-        location_name: "East Khasi Hills (Shillong)",
-        images: ["https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=800&q=80"],
-        status: "active",
-        is_featured: false,
-        created_at: new Date(Date.now() - 10800000).toISOString(),
-        user_name: "Pynskhem Lyngdoh",
-        user_email: "pynskhem.cab@example.com",
-        phone: "9856034567",
-        whatsapp: "9856034567",
-        seller: { id: "seller_3", name: "Pynskhem Lyngdoh", phone: "9856034567", whatsapp: "9856034567", email: "pynskhem.cab@example.com" }
-      },
-      {
-        id: "sample_listing_4",
-        title: "Solid Teak Wood 6-Seater Dining Table Set",
-        description: "Handcrafted pure teak wood 6-seater dining table with 6 cushioned chairs. Less than 1 year old, moving to new city so urgent sale.",
-        price: 18500,
-        category_id: "cat_8",
-        category: { id: "cat_8", name: "Furniture", icon: "🛋️ Furniture" },
-        location_id: "loc_jowai",
-        location: { id: "loc_jowai", name: "West Jaintia Hills (Jowai)" },
-        location_name: "West Jaintia Hills (Jowai)",
-        images: ["https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=800&q=80"],
-        status: "active",
-        is_featured: false,
-        created_at: new Date(Date.now() - 14400000).toISOString(),
-        user_name: "Wanroi Dkhar",
-        user_email: "wanroi.dkhar@example.com",
-        phone: "9402123456",
-        whatsapp: "9402123456",
-        seller: { id: "seller_4", name: "Wanroi Dkhar", phone: "9402123456", whatsapp: "9402123456", email: "wanroi.dkhar@example.com" }
-      },
-      {
-        id: "sample_listing_5",
-        title: "2 BHK Independent Floor for Rent in Laitumkhrah",
-        description: "Spacious 2 BHK residential floor with 24/7 running water, parking space, balcony view. Ideal for families or working professionals.",
-        price: 14000,
-        category_id: "cat_4",
-        category: { id: "cat_4", name: "Property / House", icon: "🏡 Property / House" },
-        location_id: "loc_shillong",
-        location: { id: "loc_shillong", name: "East Khasi Hills (Shillong)" },
-        location_name: "East Khasi Hills (Shillong)",
-        images: ["https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80"],
-        status: "active",
-        is_featured: false,
-        created_at: new Date(Date.now() - 18000000).toISOString(),
-        user_name: "Balang Kharbhih",
-        user_email: "balang.prop@example.com",
-        phone: "9862145678",
-        whatsapp: "9862145678",
-        seller: { id: "seller_5", name: "Balang Kharbhih", phone: "9862145678", whatsapp: "9862145678", email: "balang.prop@example.com" }
-      },
-      {
-        id: "sample_listing_6",
-        title: "Dell XPS 13 i7 16GB RAM / 512GB SSD Laptop",
-        description: "Dell XPS 13 Ultrabook, 11th Gen Intel Core i7, 16GB RAM, 512GB NVMe SSD, FHD+ InfinityEdge Display. Excellent condition, charger included.",
-        price: 42000,
-        category_id: "cat_2",
-        category: { id: "cat_2", name: "Electronics", icon: "💻 Electronics" },
-        location_id: "loc_nongstoin",
-        location: { id: "loc_nongstoin", name: "West Khasi Hills (Nongstoin)" },
-        location_name: "West Khasi Hills (Nongstoin)",
-        images: ["https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=800&q=80"],
-        status: "active",
-        is_featured: false,
-        created_at: new Date(Date.now() - 21600000).toISOString(),
-        user_name: "Kynsai Mawlong",
-        user_email: "kynsai.tech@example.com",
-        phone: "9856198765",
-        whatsapp: "9856198765",
-        seller: { id: "seller_6", name: "Kynsai Mawlong", phone: "9856198765", whatsapp: "9856198765", email: "kynsai.tech@example.com" }
-      }
-    ];
+    list = [];
   }
 
   return list.filter(function(item) {
     if (!item || !item.id) return false;
     if (deletedIds.includes(item.id)) return false;
+    if (isTestListing(item)) return false;
     if (typeof item.title === "string" && (item.title.startsWith("[SYS_") || item.title.startsWith("SYS_"))) return false;
     return true;
   }).map(function(item) {
@@ -2250,10 +1933,7 @@ async function Gp() {
 
   _adminListingsInFlight = fetchAllListings().then(function(result) {
     const next = Array.isArray(result) ? result : [];
-    // Never replace a known-good snapshot with a transient empty response.
-    if (next.length > 0 || !_adminListingsCache) {
-      _adminListingsCache = next;
-    }
+    _adminListingsCache = next;
     _adminListingsCacheAt = Date.now();
     return _adminListingsCache || next;
   }).catch(function(err) {
@@ -4101,7 +3781,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: cleanEmail })) {
       const devCheck = await checkDeviceLoginAllowedAsync(cleanEmail);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         setShowGoogleModal(!1);
         x(!1);
         return;
@@ -4110,8 +3790,20 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     const gPass = "GoogleAuthPass_2026#Secure";
     let signInRes = await e(cleanEmail, gPass);
     if(signInRes && signInRes.error){
+      if(signInRes.error.includes("already registered with another account")){
+        r.show(signInRes.error, "error");
+        setShowGoogleModal(!1);
+        x(!1);
+        return;
+      }
       if(signInRes.error.includes("Invalid login credentials") || signInRes.error.includes("Email not confirmed") || signInRes.error.includes("user not found") || signInRes.error.includes("User not found")){
-        await t(cleanEmail, gPass, targetName || cleanEmail.split("@")[0]);
+        const signUpRes = await t(cleanEmail, gPass, targetName || cleanEmail.split("@")[0]);
+        if (signUpRes && signUpRes.error) {
+          r.show(signUpRes.error, "error");
+          setShowGoogleModal(!1);
+          x(!1);
+          return;
+        }
         signInRes = await e(cleanEmail, gPass);
       }
     }
@@ -4129,7 +3821,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
         localStorage.setItem("admin_pro_overrides", JSON.stringify(pros));
       }catch(err){}
     }
-    if(!isAdmin){ await bindDeviceEmailAsync(cleanEmail); }
+    if(!isAdmin){ await bindDeviceEmailAsync(cleanEmail, null, "google"); }
     r.show("Signed in as " + cleanEmail, "success");
     setShowGoogleModal(!1);
     if(rf) await rf();
@@ -4141,14 +3833,14 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: cleanEmail })) {
       const devCheck = await checkDeviceLoginAllowedAsync(cleanEmail);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         setShowGoogleModal(!1);
         x(!1);
         return;
       }
     }
     const isAdmin = isUserAdmin({ email: targetEmail });
-    if (!isAdmin) { await bindDeviceEmailAsync(cleanEmail); }
+    if (!isAdmin) { await bindDeviceEmailAsync(cleanEmail, null, "google"); }
     r.show("Signed in as " + targetEmail, "success");
     setShowGoogleModal(!1);
     const dest = isAdmin ? "/admin" : "/";
@@ -4170,7 +3862,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: o })) {
       const devCheck = await checkDeviceLoginAllowedAsync(o);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         x(!1);
         return;
       }
@@ -4181,7 +3873,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
       x(!1);
     } else {
       if (!isUserAdmin({ email: o })) {
-        await bindDeviceEmailAsync(o);
+        await bindDeviceEmailAsync(o, null, "password");
       }
       r.show("Account created! Please sign in.","success");
       l("signin");
@@ -4192,7 +3884,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
     if (!isUserAdmin({ email: o })) {
       const devCheck = await checkDeviceLoginAllowedAsync(o);
       if (!devCheck.allowed) {
-        r.show(devCheck.message || "This device is already registered with another account. Only the registered Gmail/Email ID can be used on this device.", "error");
+        r.show(devCheck.message || "This app is already registered with another account. Please use the registered account.", "error");
         x(!1);
         return;
       }
@@ -4203,7 +3895,7 @@ function K1(){const{signIn:e,signUp:t,resetPassword:n,refreshProfile:rf,user:cur
       r.show(f,"error");
     }else{
       if (!isUserAdmin({ email: o })) {
-        await bindDeviceEmailAsync(o);
+        await bindDeviceEmailAsync(o, null, "password");
       }
       r.show("Welcome back!","success");
       const dest = isUserAdmin({ email: o }) ? "/admin" : "/";
@@ -9755,9 +9447,9 @@ function jj(){
     children:[
       a.jsxs(ky,{
         children:[
-          a.jsx(Ce,{path:'/',element:a.jsx(W1,{})}),
-          a.jsx(Ce,{path:'/search',element:a.jsx(V1,{})}),
-          a.jsx(Ce,{path:'/listing/:id',element:a.jsx(q1,{})}),
+          a.jsx(Ce,{path:'/',element:a.jsx(Pt,{children:a.jsx(W1,{})})}),
+          a.jsx(Ce,{path:'/search',element:a.jsx(Pt,{children:a.jsx(V1,{})})}),
+          a.jsx(Ce,{path:'/listing/:id',element:a.jsx(Pt,{children:a.jsx(q1,{})})}),
           a.jsx(Ce,{path:'/auth',element:a.jsx(K1,{})}),
           a.jsx(Ce,{path:'/post',element:a.jsx(Pt,{children:a.jsx(nj,{})})}),
           a.jsx(Ce,{path:'/favorites',element:a.jsx(Pt,{children:a.jsx(rj,{})})}),

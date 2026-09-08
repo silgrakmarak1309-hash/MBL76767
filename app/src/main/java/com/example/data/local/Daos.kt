@@ -30,6 +30,12 @@ interface ListingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertListings(listings: List<ListingEntity>)
 
+    @Query("DELETE FROM listings WHERE id NOT IN (:validIds)")
+    suspend fun deleteListingsNotIn(validIds: List<String>)
+
+    @Query("DELETE FROM listings")
+    suspend fun clearAllListings()
+
     @Update
     suspend fun updateListing(listing: ListingEntity)
 
@@ -65,6 +71,9 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteCategory(id: String)
+
+    @Query("SELECT COUNT(*) FROM categories")
+    suspend fun getCategoriesCount(): Int
 }
 
 @Dao
